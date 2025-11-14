@@ -131,6 +131,17 @@ const reservationService = {
     }
   },
 
+  // ✅ NOUVELLE MÉTHODE : Supprimer définitivement une réservation
+  async deleteReservation(id) {
+    try {
+      const response = await api.delete(`/reservations/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Erreur suppression réservation:', error.response?.data || error.message);
+      throw error;
+    }
+  },
+
   // Simuler un paiement
   async mockPayment(reservationId) {
     try {

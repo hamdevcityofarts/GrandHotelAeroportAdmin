@@ -47,12 +47,19 @@ const RoomCard = ({ room, onEdit, onDelete, onView }) => {
     return amenityIcons[amenity] || Users
   }
 
-  // ✅ FORMATER LE PRIX EN XAF
+  // ✅ FORMATER LE PRIX EXACT EN FCFA (SANS CONVERSION)
   const formatPrice = (price) => {
+    // Convertir en nombre si c'est une chaîne
+    const numericPrice = typeof price === 'string' ? parseFloat(price) : price;
+    
+    // Vérifier si le prix est valide
+    if (!numericPrice && numericPrice !== 0) return '0 FCFA';
+    
+    // Formater avec séparateurs de milliers SANS conversion de devise
     return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XAF'
-    }).format(price);
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(numericPrice) + ' FCFA';
   }
 
   const statusConfig = getStatusConfig(room.status)
@@ -61,6 +68,13 @@ const RoomCard = ({ room, onEdit, onDelete, onView }) => {
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
       {/* Image de la chambre */}
       <div className="h-48 bg-gradient-to-br from-blue-500 to-purple-600 relative">
+        {room.images && room.images.length > 0 && room.images[0]?.url ? (
+          <img 
+            src={room.images[0].url} 
+            alt={room.images[0].alt || room.name}
+            className="w-full h-full object-cover"
+          />
+        ) : null}
         <div className="absolute top-4 right-4">
           <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${statusConfig.color}`}>
             {statusConfig.badge}
@@ -68,7 +82,7 @@ const RoomCard = ({ room, onEdit, onDelete, onView }) => {
         </div>
         <div className="absolute bottom-4 left-4">
           <span className="text-white text-lg font-semibold bg-black bg-opacity-50 px-3 py-1 rounded-lg">
-            {room.name}
+            {room.number}
           </span>
         </div>
       </div>
@@ -93,28 +107,30 @@ const RoomCard = ({ room, onEdit, onDelete, onView }) => {
         </div>
 
         {/* Équipements */}
-        <div className="mb-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Équipements</h4>
-          <div className="flex flex-wrap gap-2">
-            {room.amenities.slice(0, 4).map((amenity, index) => {
-              const AmenityIcon = getAmenityIcon(amenity)
-              return (
-                <div
-                  key={index}
-                  className="flex items-center px-3 py-1 bg-gray-100 rounded-lg text-sm text-gray-700"
-                >
-                  <AmenityIcon className="w-3 h-3 mr-2" />
-                  {amenity}
-                </div>
-              )
-            })}
-            {room.amenities.length > 4 && (
-              <span className="px-3 py-1 bg-gray-100 rounded-lg text-sm text-gray-500">
-                +{room.amenities.length - 4}
-              </span>
-            )}
+        {room.amenities && room.amenities.length > 0 && (
+          <div className="mb-4">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Équipements</h4>
+            <div className="flex flex-wrap gap-2">
+              {room.amenities.slice(0, 4).map((amenity, index) => {
+                const AmenityIcon = getAmenityIcon(amenity)
+                return (
+                  <div
+                    key={index}
+                    className="flex items-center px-3 py-1 bg-gray-100 rounded-lg text-sm text-gray-700"
+                  >
+                    <AmenityIcon className="w-3 h-3 mr-2" />
+                    {amenity}
+                  </div>
+                )
+              })}
+              {room.amenities.length > 4 && (
+                <span className="px-3 py-1 bg-gray-100 rounded-lg text-sm text-gray-500">
+                  +{room.amenities.length - 4}
+                </span>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Description */}
         {room.description && (

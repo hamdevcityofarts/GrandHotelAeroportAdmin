@@ -176,6 +176,9 @@ const Reservations = () => {
       case 'pending': return 'bg-yellow-100 text-yellow-800 border border-yellow-200'
       case 'cancelled': return 'bg-red-100 text-red-800 border border-red-200'
       case 'completed': return 'bg-blue-100 text-blue-800 border border-blue-200'
+      case 'pending_payment': return 'bg-orange-100 text-orange-800 border border-orange-200'
+      case 'partially_paid': return 'bg-purple-100 text-purple-800 border border-purple-200'
+      case 'payment_failed': return 'bg-red-100 text-red-800 border border-red-200'
       default: return 'bg-gray-100 text-gray-800 border border-gray-200'
     }
   }
@@ -187,6 +190,9 @@ const Reservations = () => {
       case 'pending': return 'En attente'
       case 'cancelled': return 'Annulée'
       case 'completed': return 'Terminée'
+      case 'pending_payment': return 'Paiement en attente'
+      case 'partially_paid': return 'Partiellement payée'
+      case 'payment_failed': return 'Paiement échoué'
       default: return status
     }
   }
@@ -228,6 +234,25 @@ const Reservations = () => {
     }
   }
 
+  // ✅ NOUVELLE FONCTION : Supprimer définitivement une réservation
+  const deleteReservation = async (id) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer définitivement cette réservation ? Cette action est irréversible.')) {
+      return
+    }
+    
+    try {
+      const response = await reservationService.deleteReservation(id)
+      if (response.success) {
+        toast.success('Réservation supprimée avec succès')
+        loadReservations(true) // Recharger la liste
+      }
+    } catch (error) {
+      console.error('Erreur suppression:', error)
+      const errorMessage = error.response?.data?.message || 'Erreur lors de la suppression'
+      toast.error(errorMessage)
+    }
+  }
+
   const viewReservation = (id) => {
     navigate(`/dashboard/reservation/${id}/edit`)
   }
@@ -243,13 +268,17 @@ const Reservations = () => {
     const confirmed = reservations.filter(r => r.status === 'confirmed').length
     const completed = reservations.filter(r => r.status === 'completed').length
     const cancelled = reservations.filter(r => r.status === 'cancelled').length
+    const pendingPayment = reservations.filter(r => r.status === 'pending_payment').length
+    const partiallyPaid = reservations.filter(r => r.status === 'partially_paid').length
 
     return {
       total: totalReservations,
       pending,
       confirmed,
       completed,
-      cancelled
+      cancelled,
+      pendingPayment,
+      partiallyPaid
     }
   }
 
@@ -317,7 +346,9 @@ const Reservations = () => {
             >
               <option value="all">Tous les statuts</option>
               <option value="pending">En attente</option>
+              <option value="pending_payment">Paiement en attente</option>
               <option value="confirmed">Confirmée</option>
+              <option value="partially_paid">Partiellement payée</option>
               <option value="cancelled">Annulée</option>
               <option value="completed">Terminée</option>
             </select>
@@ -328,7 +359,7 @@ const Reservations = () => {
             <div className="flex justify-between text-sm">
               <span className="text-blue-700 font-medium">En attente:</span>
               <span className="font-semibold text-blue-900">
-                {stats.pending}
+                {stats.pending + stats.pendingPayment}
               </span>
             </div>
           </div>
@@ -350,7 +381,7 @@ const Reservations = () => {
             
             {/* En attente */}
             <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-              <div className="text-2xl font-bold text-yellow-700">{stats.pending}</div>
+              <div className="text-2xl font-bold text-yellow-700">{stats.pending + stats.pendingPayment}</div>
               <div className="text-sm text-yellow-600 mt-1">En attente</div>
             </div>
             
@@ -360,10 +391,10 @@ const Reservations = () => {
               <div className="text-sm text-green-600 mt-1">Confirmées</div>
             </div>
             
-            {/* Terminées */}
-            <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="text-2xl font-bold text-blue-700">{stats.completed}</div>
-              <div className="text-sm text-blue-600 mt-1">Terminées</div>
+            {/* Partiellement payées */}
+            <div className="text-center p-4 bg-purple-50 rounded-lg border border-purple-200">
+              <div className="text-2xl font-bold text-purple-700">{stats.partiallyPaid}</div>
+              <div className="text-sm text-purple-600 mt-1">Part. payées</div>
             </div>
             
             {/* Annulées */}
@@ -472,6 +503,15 @@ const Reservations = () => {
                     title="Voir/Modifier"
                   >
                     <Eye className="w-4 h-4" />
+                  </button>
+
+                  {/* ✅ BOUTON SUPPRIMER - Toujours visible pour les admins */}
+                  <button
+                    onClick={() => deleteReservation(reservation._id)}
+                    className="text-red-600 hover:text-red-900 p-1 rounded transition-colors"
+                    title="Supprimer définitivement"
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </button>
 
                   {/* Actions conditionnelles */}
