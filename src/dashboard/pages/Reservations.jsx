@@ -20,16 +20,9 @@ const Reservations = () => {
   const [hasMore, setHasMore] = useState(true)
   const [allReservationsLoaded, setAllReservationsLoaded] = useState(false)
 
-  // Fonction de conversion Euro → F CFA
-  const convertToCFA = (amountInEuro) => {
-    const exchangeRate = 655.957;
-    return Math.round(amountInEuro * exchangeRate);
-  };
-
-  // Formatage montant F CFA
-  const formatAmountCFA = (amountInEuro) => {
-    const amountInCFA = convertToCFA(amountInEuro);
-    return `${amountInCFA.toLocaleString('fr-FR')} FCFA`;
+  // ✅ FORMATAGE DIRECT EN FCFA
+  const formatAmountCFA = (amount) => {
+    return `${parseFloat(amount).toLocaleString('fr-FR')} FCFA`;
   };
 
   // Charger les réservations initiales
@@ -40,7 +33,7 @@ const Reservations = () => {
         setPage(1)
         setHasMore(true)
         setAllReservationsLoaded(false)
-        setReservations([]) // ✅ VIDER les réservations avant de recharger
+        setReservations([])
       }
       
       const currentPage = reset ? 1 : page
@@ -49,12 +42,10 @@ const Reservations = () => {
         limit: 10
       }
       
-      // ✅ CORRECTION : Toujours envoyer le filtre statut à l'API
       if (statusFilter !== 'all') {
         params.status = statusFilter
       }
       
-      // ✅ CORRECTION : Envoyer aussi le terme de recherche à l'API
       if (searchTerm) {
         params.search = searchTerm
       }
@@ -72,7 +63,6 @@ const Reservations = () => {
           setReservations(prev => [...prev, ...newReservations])
         }
         
-        // Vérifier s'il reste des réservations à charger
         const reservationsCount = newReservations.length
         if (reservationsCount < 10) {
           setHasMore(false)
@@ -104,7 +94,6 @@ const Reservations = () => {
         limit: 10
       }
       
-      // ✅ CORRECTION : Appliquer les mêmes filtres pour le chargement supplémentaire
       if (statusFilter !== 'all') {
         params.status = statusFilter
       }
@@ -151,14 +140,14 @@ const Reservations = () => {
     })
     
     if (node) observer.current.observe(node)
-  }, [loadingMore, hasMore, statusFilter]) // ✅ AJOUTER statusFilter aux dépendances
+  }, [loadingMore, hasMore, statusFilter])
 
   // Chargement initial
   useEffect(() => {
     loadReservations(true)
   }, [])
 
-  // ✅ CORRECTION : Recharger automatiquement quand les filtres changent
+  // Recharger automatiquement quand les filtres changent
   useEffect(() => {
     console.log(`🔄 Filtre changé: statut=${statusFilter}, recherche=${searchTerm}`)
     loadReservations(true)
@@ -197,7 +186,7 @@ const Reservations = () => {
     }
   }
 
-  // ✅ CORRECTION : Filtrer côté client en fallback (au cas où l'API ne filtre pas)
+  // Filtrer côté client en fallback
   const filteredReservations = reservations.filter(reservation => {
     if (statusFilter === 'all') return true
     return reservation.status === statusFilter
@@ -209,7 +198,7 @@ const Reservations = () => {
       const response = await reservationService.confirmReservation(id)
       if (response.success) {
         toast.success('Réservation confirmée avec succès')
-        loadReservations(true) // Recharger la liste
+        loadReservations(true)
       }
     } catch (error) {
       console.error('Erreur confirmation:', error)
@@ -226,7 +215,7 @@ const Reservations = () => {
       const response = await reservationService.cancelReservation(id)
       if (response.success) {
         toast.success(response.message)
-        loadReservations(true) // Recharger la liste
+        loadReservations(true)
       }
     } catch (error) {
       console.error('Erreur annulation:', error)
@@ -234,7 +223,7 @@ const Reservations = () => {
     }
   }
 
-  // ✅ NOUVELLE FONCTION : Supprimer définitivement une réservation
+  // Supprimer définitivement une réservation
   const deleteReservation = async (id) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer définitivement cette réservation ? Cette action est irréversible.')) {
       return
@@ -244,7 +233,7 @@ const Reservations = () => {
       const response = await reservationService.deleteReservation(id)
       if (response.success) {
         toast.success('Réservation supprimée avec succès')
-        loadReservations(true) // Recharger la liste
+        loadReservations(true)
       }
     } catch (error) {
       console.error('Erreur suppression:', error)
@@ -366,7 +355,7 @@ const Reservations = () => {
         </div>
       </div>
 
-      {/* STATISTIQUES RAPIDES - POSITIONNÉES AVANT LE TABLEAU */}
+      {/* STATISTIQUES RAPIDES */}
       {reservations.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -410,14 +399,13 @@ const Reservations = () => {
       <TableCard
         title={`Réservations ${statusFilter !== 'all' ? `- ${getStatusText(statusFilter)}` : ''} (${filteredReservations.length})`}
         headers={['Client', 'Chambre', 'Dates', 'Nuits', 'Statut', 'Montant', 'Actions']}
-        data={filteredReservations} // ✅ UTILISER filteredReservations au lieu de reservations
+        data={filteredReservations}
         emptyMessage={
           statusFilter !== 'all' 
             ? `Aucune réservation avec le statut "${getStatusText(statusFilter)}"`
             : 'Aucune réservation trouvée'
         }
         renderRow={(reservation, index) => {
-          // Ajouter la référence pour l'infinite scroll sur le dernier élément
           const isLastElement = index === filteredReservations.length - 1
           const shouldAttachObserver = isLastElement && hasMore && !loadingMore
           
@@ -478,13 +466,10 @@ const Reservations = () => {
                 </span>
               </td>
 
-              {/* Montant */}
+              {/* Montant - UNIQUEMENT EN FCFA */}
               <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                 <div className="text-sm font-medium text-gray-900">
                   {formatAmountCFA(reservation.totalAmount)}
-                </div>
-                <div className="text-xs text-gray-500">
-                  {reservation.totalAmount} €
                 </div>
                 {reservation.acompte > 0 && (
                   <div className="text-xs text-gray-500">
@@ -505,7 +490,7 @@ const Reservations = () => {
                     <Eye className="w-4 h-4" />
                   </button>
 
-                  {/* ✅ BOUTON SUPPRIMER - Toujours visible pour les admins */}
+                  {/* Bouton Supprimer */}
                   <button
                     onClick={() => deleteReservation(reservation._id)}
                     className="text-red-600 hover:text-red-900 p-1 rounded transition-colors"

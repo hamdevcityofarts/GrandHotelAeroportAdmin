@@ -15,7 +15,7 @@ const EditReservation = () => {
   const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
 
-  // Formatage montant F CFA
+  // ✅ FORMATAGE DIRECT EN FCFA
   const formatAmountCFA = (amount) => {
     return `${parseFloat(amount).toLocaleString('fr-FR')} FCFA`;
   };
@@ -26,7 +26,6 @@ const EditReservation = () => {
       try {
         setLoading(true)
         
-        // Charger la réservation
         const reservationResponse = await reservationService.getReservationById(id)
         if (reservationResponse.success) {
           setReservation(reservationResponse.reservation)
@@ -34,7 +33,6 @@ const EditReservation = () => {
           throw new Error('Réservation non trouvée')
         }
 
-        // Charger les chambres disponibles
         const chambresResponse = await roomService.getAllRooms()
         if (chambresResponse.data.success) {
           setChambres(chambresResponse.data.chambres)
@@ -52,7 +50,6 @@ const EditReservation = () => {
     loadData()
   }, [id, navigate, toast])
 
-  // Sauvegarder les modifications
   const handleSave = async () => {
     if (!reservation) return
 
@@ -73,7 +70,6 @@ const EditReservation = () => {
       if (response.success) {
         toast.success('Réservation modifiée avec succès')
         setIsEditing(false)
-        // Recharger les données
         const updatedResponse = await reservationService.getReservationById(id)
         if (updatedResponse.success) {
           setReservation(updatedResponse.reservation)
@@ -89,7 +85,6 @@ const EditReservation = () => {
     }
   }
 
-  // Annuler une réservation
   const handleCancelReservation = async () => {
     if (!window.confirm('Êtes-vous sûr de vouloir annuler cette réservation ?')) {
       return
@@ -107,13 +102,11 @@ const EditReservation = () => {
     }
   }
 
-  // Confirmer une réservation
   const handleConfirmReservation = async () => {
     try {
       const response = await reservationService.confirmReservation(id)
       if (response.success) {
         toast.success('Réservation confirmée avec succès')
-        // Recharger les données
         const updatedResponse = await reservationService.getReservationById(id)
         if (updatedResponse.success) {
           setReservation(updatedResponse.reservation)
@@ -181,7 +174,6 @@ const EditReservation = () => {
                 <span>Modifier</span>
               </button>
               
-              {/* Actions conditionnelles selon le statut */}
               {reservation.status === 'pending' && (
                 <button 
                   onClick={handleConfirmReservation}
@@ -237,7 +229,7 @@ const EditReservation = () => {
             </span>
           </div>
           
-          {/* Informations de paiement */}
+          {/* Informations de paiement - UNIQUEMENT EN FCFA */}
           <div className="text-right">
             <div className="text-2xl font-bold text-gray-900">
               {formatAmountCFA(reservation.totalAmount)}
@@ -448,7 +440,7 @@ const EditReservation = () => {
           </div>
         </div>
 
-        {/* Informations paiement */}
+        {/* Informations paiement - UNIQUEMENT EN FCFA */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-semibold mb-4 flex items-center space-x-2">
             <span className="text-green-600 mr-2">FCFA</span>

@@ -18,12 +18,13 @@ import EditReservation from "./dashboard/pages/EditReservation";
 import ClientDetails from "./dashboard/pages/ClientDetails";
 import PaymentDetails from "./dashboard/pages/PaymentDetails";
 import UserDetails from "./dashboard/pages/UserDetails";
+import EditUser from "./dashboard/pages/EditUser"; // ✅ NOUVEAU COMPOSANT
 import AddUser from "./dashboard/pages/AddUser";
 import AddRoom from "./dashboard/pages/AddRoom";
 import AddReservation from "./dashboard/pages/AddReservation";
 import Login from "./dashboard/pages/Login";
 import SignUp from "./dashboard/pages/SignUp";
-import EditRoom from "./dashboard/pages/EditRooms"; // ✅ AJOUT IMPORT
+import EditRoom from "./dashboard/pages/EditRooms";
 
 // Initialisation Auth
 const AuthInitializer = ({ children }) => {
@@ -135,12 +136,14 @@ function AppContent() {
           <Route path="add-room" element={<AddRoom />} />
           <Route path="add-reservation" element={<AddReservation />} />
           <Route path="room/:id" element={<RoomDetails />} />
-          <Route path="room/:id/edit" element={<EditRoom />} /> {/* ✅ AJOUT ROUTE EDIT ROOM */}
+          <Route path="room/:id/edit" element={<EditRoom />} />
           <Route path="reservation/:id/edit" element={<EditReservation />} />
           <Route path="client/:id" element={<ClientDetails />} />
           <Route path="payment/:id" element={<PaymentDetails />} />
+          
+          {/* ✅ CORRECTION DES ROUTES UTILISATEURS */}
           <Route path="user/:id" element={<UserDetails />} />
-           <Route path="user/:id/edit" element={<UserDetails />} />
+          <Route path="user/:id/edit" element={<EditUser />} /> {/* ✅ NOUVELLE ROUTE */}
         </Route>
 
         {/* Fallback */}

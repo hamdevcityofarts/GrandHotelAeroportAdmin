@@ -35,16 +35,10 @@ const AddReservation = () => {
     status: 'pending'
   })
 
-  // Fonction de conversion Euro → F CFA
-  const convertToCFA = (amountInEuro) => {
-    const exchangeRate = 655.957;
-    return Math.round(amountInEuro * exchangeRate);
-  };
-
-  // Formatage montant F CFA
-  const formatAmountCFA = (amountInEuro) => {
-    const amountInCFA = convertToCFA(amountInEuro);
-    return `${amountInCFA.toLocaleString('fr-FR')} FCFA`;
+  // ✅ SUPPRIMÉ : Fonctions de conversion Euro → F CFA
+  // ✅ FORMATAGE DIRECT EN FCFA
+  const formatAmountCFA = (amount) => {
+    return `${parseFloat(amount).toLocaleString('fr-FR')} FCFA`;
   };
 
   // Charger les chambres
@@ -378,9 +372,7 @@ const AddReservation = () => {
                 <span>Total:</span>
                 <span className="text-blue-600">{formatAmountCFA(calculateTotal())}</span>
               </div>
-              <div className="text-xs text-gray-500 text-center border-t pt-2">
-                Soit {calculateTotal()} €
-              </div>
+              {/* ✅ SUPPRIMÉ : Affichage en euros */}
             </div>
           </div>
 

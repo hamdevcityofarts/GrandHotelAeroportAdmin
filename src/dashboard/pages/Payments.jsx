@@ -1,13 +1,19 @@
-// pages/Payments.jsx
 import React from 'react';
-import { CheckCircle, Clock, AlertCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle, Clock, AlertCircle, RefreshCw, Eye } from 'lucide-react';
 import TableCard from '../components/TableCard';
 import { usePayments } from '../../hooks/usePayments';
+import { useNavigate } from 'react-router-dom';
 
 const Payments = () => {
   const { payments, loading, error, refetch } = usePayments();
+  const navigate = useNavigate();
 
-  // 🔄 Même logique d'affichage des statuts...
+  // Formatage montant FCFA
+  const formatAmountCFA = (amount) => {
+    return `${parseFloat(amount).toLocaleString('fr-FR')} FCFA`;
+  };
+
+  // Logique d'affichage des statuts
   const getStatusDisplay = (status, type) => {
     if (status === 'completed') {
       return type === 'deposit' ? 'acompte' : 'complet';
@@ -41,7 +47,7 @@ const Payments = () => {
     }
   };
 
-  // Calcul des statistiques
+  // Calcul des statistiques en FCFA
   const statsData = payments.reduce((acc, payment) => {
     const status = getStatusDisplay(payment.status, payment.type);
     
@@ -52,44 +58,87 @@ const Payments = () => {
     return acc;
   }, { complet: 0, acompte: 0, retard: 0 });
 
-  // 🔄 Rendu identique mais avec vos services
+  // Navigation vers les détails
+  const viewPaymentDetails = (paymentId) => {
+    navigate(`/dashboard/payment/${paymentId}`);
+  };
+
   return (
     <div className="space-y-6">
-      {/* En-tête identique */}
+      {/* En-tête */}
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Gestion des Paiements</h1>
         <button 
           onClick={refetch}
-          className="flex items-center space-x-2 bg-gray-100 px-4 py-2 rounded-lg hover:bg-gray-200"
+          className="flex items-center space-x-2 bg-gray-100 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
         >
           <RefreshCw className="w-4 h-4" />
           <span>Actualiser</span>
         </button>
       </div>
 
-      {/* Statistiques identiques */}
+      {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* ... même code pour les statistiques ... */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Paiements Complets</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">
+                {formatAmountCFA(statsData.complet)}
+              </p>
+            </div>
+            <CheckCircle className="w-8 h-8 text-green-500" />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Acomptes</p>
+              <p className="text-2xl font-bold text-yellow-600 mt-1">
+                {formatAmountCFA(statsData.acompte)}
+              </p>
+            </div>
+            <Clock className="w-8 h-8 text-yellow-500" />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">En Retard</p>
+              <p className="text-2xl font-bold text-red-600 mt-1">
+                {formatAmountCFA(statsData.retard)}
+              </p>
+            </div>
+            <AlertCircle className="w-8 h-8 text-red-500" />
+          </div>
+        </div>
       </div>
 
-      {/* Tableau identique */}
+      {/* Tableau des paiements */}
       <TableCard
         title={`Historique des Paiements (${payments.length})`}
         headers={['Client', 'Montant', 'Date', 'Type', 'Statut', 'Référence', 'Actions']}
         data={payments}
+        emptyMessage={
+          payments.length === 0 
+            ? "Aucun paiement trouvé" 
+            : "Aucun paiement ne correspond aux critères"
+        }
         renderRow={(payment) => (
           <tr key={payment._id} className="hover:bg-gray-50">
             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
               {payment.client?.name} {payment.client?.surname}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-              €{payment.amount}
+              {formatAmountCFA(payment.amount)}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
               {new Date(payment.createdAt).toLocaleDateString('fr-FR')}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
-              {payment.type}
+              {payment.type === 'deposit' ? 'Acompte' : 'Complet'}
             </td>
             <td className="px-6 py-4 whitespace-nowrap">
               <div className="flex items-center">
@@ -100,14 +149,15 @@ const Payments = () => {
               </div>
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-              {payment.transactionId}
+              {payment.transactionId || payment._id.slice(-8).toUpperCase()}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
               <button 
-                onClick={() => window.location.href = `/dashboard/payments/${payment._id}`}
-                className="text-blue-600 hover:text-blue-900"
+                onClick={() => viewPaymentDetails(payment._id)}
+                className="text-blue-600 hover:text-blue-900 flex items-center space-x-1 transition-colors"
               >
-                Voir détails
+                <Eye className="w-4 h-4" />
+                <span>Voir détails</span>
               </button>
             </td>
           </tr>

@@ -8,6 +8,7 @@ import TableCard from '../components/TableCard'
 const Users = () => {
   const dispatch = useAppDispatch()
   const { users, isLoading, error } = useAppSelector((state) => state.users)
+  const { user: currentUser } = useAppSelector((state) => state.auth) // Utilisateur connecté
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
 
@@ -22,9 +23,29 @@ const Users = () => {
         console.log('✅ Utilisateur supprimé avec succès')
       } catch (error) {
         console.error('❌ Erreur suppression:', error)
-        alert(`Erreur lors de la suppression: ${error}`)
+        alert(`Erreur lors de la suppression: ${error.message || error}`)
       }
     }
+  }
+
+  // ✅ FONCTION AJOUTÉE : Vérifier les permissions d'édition
+  const canEditUser = (targetUser) => {
+    if (!currentUser || !targetUser) return false
+    // L'utilisateur peut s'éditer lui-même
+    if (currentUser._id === targetUser._id) return true
+    // Seuls les admins peuvent éditer d'autres utilisateurs
+    return currentUser.role === 'admin'
+  }
+
+  // ✅ FONCTION AJOUTÉE : Vérifier les permissions de suppression
+  const canDeleteUser = (targetUser) => {
+    if (!currentUser || !targetUser) return false
+    // Empêcher l'auto-suppression
+    if (currentUser._id === targetUser._id) return false
+    // Empêcher la suppression des admins principaux
+    if (targetUser.role === 'admin' && targetUser.email === 'admin@grandhotel.com') return false
+    // Seuls les admins peuvent supprimer
+    return currentUser.role === 'admin'
   }
 
   // Filtrage des utilisateurs
@@ -130,13 +151,16 @@ const Users = () => {
             {userStats.total} utilisateur(s) au total
           </p>
         </div>
-        <Link
-          to="/dashboard/add-user"
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-700"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Nouvel Utilisateur</span>
-        </Link>
+        {/* Seuls les admins peuvent créer des utilisateurs */}
+        {currentUser?.role === 'admin' && (
+          <Link
+            to="/dashboard/add-user"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nouvel Utilisateur</span>
+          </Link>
+        )}
       </div>
 
       {/* Statistiques */}
@@ -240,31 +264,39 @@ const Users = () => {
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
               <div className="flex space-x-3">
+                {/* Voir - Toujours accessible */}
                 <Link
-                  to={`/dashboard/users/${user.id}`}
+                  to={`/dashboard/user/${user._id}`}
                   className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
                   title="Voir détails"
                 >
                   <Eye className="w-4 h-4" />
                   <span>Voir</span>
                 </Link>
-                <Link
-                  to={`/dashboard/users/${user.id}/edit`} 
-                  className="text-green-600 hover:text-green-900 flex items-center space-x-1"
-                  title="Modifier"
-                >
-                  <Edit className="w-4 h-4" />
-                  <span>Modifier</span>
-                </Link>
-                <button 
-                  onClick={() => handleDeleteUser(user._id, `${user.name} ${user.surname}`)}
-                  className="text-red-600 hover:text-red-900 flex items-center space-x-1"
-                  title="Supprimer"
-                  disabled={user.role === 'admin'}
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Supprimer</span>
-                </button>
+                
+                {/* Modifier - Conditionnel */}
+                {canEditUser(user) && (
+                  <Link
+                    to={`/dashboard/user/${user._id}/edit`}
+                    className="text-green-600 hover:text-green-900 flex items-center space-x-1"
+                    title="Modifier"
+                  >
+                    <Edit className="w-4 h-4" />
+                    <span>Modifier</span>
+                  </Link>
+                )}
+                
+                {/* Supprimer - Conditionnel */}
+                {canDeleteUser(user) && (
+                  <button 
+                    onClick={() => handleDeleteUser(user._id, `${user.name} ${user.surname}`)}
+                    className="text-red-600 hover:text-red-900 flex items-center space-x-1"
+                    title="Supprimer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Supprimer</span>
+                  </button>
+                )}
               </div>
             </td>
           </tr>

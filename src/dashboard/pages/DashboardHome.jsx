@@ -10,7 +10,7 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts'
-import { Bed, Calendar, Users, Euro } from 'lucide-react'
+import { Bed, Calendar, Users } from 'lucide-react'
 import StatCard from '../components/StatCard'
 import ChartCard from '../components/ChartCard'
 import TableCard from '../components/TableCard'
@@ -21,11 +21,12 @@ import {
   occupancyData
 } from '../data/mockData'
 
- const CFAIcon = ({ className = "w-5 h-5" }) => (
-    <div className={`${className} flex items-center justify-center font-bold text-green-600`}>
-      <span className="text-xs">FCFA</span>
-    </div>
-  );
+// ✅ NOUVEAU : Icône FCFA personnalisée
+const CFAIcon = ({ className = "w-5 h-5" }) => (
+  <div className={`${className} flex items-center justify-center font-bold text-green-600`}>
+    <span className="text-xs">FCFA</span>
+  </div>
+);
 
 const DashboardHome = () => {
   const [recentReservations, setRecentReservations] = useState([])
@@ -37,16 +38,10 @@ const DashboardHome = () => {
     availableRooms: 0
   })
 
-  // Fonction de conversion Euro → F CFA
-  const convertToCFA = (amountInEuro) => {
-    const exchangeRate = 655.957;
-    return Math.round(amountInEuro * exchangeRate);
-  };
-
-  // Formatage montant F CFA
-  const formatAmountCFA = (amountInEuro) => {
-    const amountInCFA = convertToCFA(amountInEuro);
-    return `${amountInCFA.toLocaleString('fr-FR')} FCFA`;
+  // ✅ SUPPRIMÉ : Fonctions de conversion Euro → F CFA
+  // ✅ FORMATAGE DIRECT EN FCFA
+  const formatAmountCFA = (amount) => {
+    return `${parseFloat(amount).toLocaleString('fr-FR')} FCFA`;
   };
 
   // Charger les dernières réservations
@@ -54,18 +49,16 @@ const DashboardHome = () => {
     try {
       setLoading(true)
       
-      // Charger les réservations (les 3 premières de la première page)
       const response = await reservationService.getReservations({ 
         page: 1, 
         limit: 3,
-        sort: 'createdAt:desc' // Les plus récentes d'abord
+        sort: 'createdAt:desc'
       })
       
       if (response.success) {
         const reservations = response.reservations || []
-        setRecentReservations(reservations.slice(0, 3)) // Prendre les 3 premières
+        setRecentReservations(reservations.slice(0, 3))
         
-        // Calculer les statistiques basiques
         const totalRevenue = reservations.reduce((sum, res) => sum + (res.totalAmount || 0), 0)
         const confirmedReservations = reservations.filter(res => res.status === 'confirmed').length
         
@@ -73,12 +66,11 @@ const DashboardHome = () => {
           totalRevenue,
           occupancyRate: Math.round((confirmedReservations / Math.max(reservations.length, 1)) * 100),
           totalBookings: reservations.length,
-          availableRooms: 10 - confirmedReservations // Exemple: 10 chambres au total
+          availableRooms: 10 - confirmedReservations
         })
       }
     } catch (error) {
       console.error('❌ Erreur chargement réservations récentes:', error)
-      // En cas d'erreur, utiliser les données mockées
       setRecentReservations([])
     } finally {
       setLoading(false)
@@ -89,10 +81,11 @@ const DashboardHome = () => {
     loadRecentReservations()
   }, [])
 
-  // Convertir les données de revenus en F CFA
+  // ✅ SUPPRIMÉ : Conversion des données de revenus
+  // ✅ UTILISER LES DONNÉES DIRECTEMENT EN FCFA
   const revenueDataCFA = revenueData.map(item => ({
     ...item,
-    revenue: convertToCFA(item.revenue)
+    revenue: item.revenue // Déjà en FCFA
   }));
 
   const stats = [
@@ -126,12 +119,10 @@ const DashboardHome = () => {
     }
   ]
 
-  // Formater la date pour l'affichage
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('fr-FR')
   }
 
-  // Texte des statuts
   const getStatusText = (status) => {
     switch (status) {
       case 'confirmed': return 'Confirmée'
@@ -142,7 +133,6 @@ const DashboardHome = () => {
     }
   }
 
-  // Couleurs des statuts
   const getStatusColor = (status) => {
     switch (status) {
       case 'confirmed': return 'bg-green-100 text-green-800 border border-green-200'
@@ -277,14 +267,12 @@ const DashboardHome = () => {
               </span>
             </td>
 
-            {/* Montant */}
+            {/* Montant - UNIQUEMENT EN FCFA */}
             <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
               <div className="text-sm font-medium text-gray-900">
                 {formatAmountCFA(reservation.totalAmount)}
               </div>
-              <div className="text-xs text-gray-500">
-                {reservation.totalAmount} €
-              </div>
+              {/* ✅ SUPPRIMÉ : Affichage en euros */}
             </td>
           </tr>
         )}
