@@ -15,8 +15,9 @@ import { useToast } from '../../context/ToastContext'
 import { useAppDispatch, useAppSelector } from '../../hooks'
 import { fetchRooms, updateRoom } from '../../store/slices/roomsSlice'
 import roomService from '../../services/roomService'
+import cloudinaryService from '../../services/cloudinaryService'
 
-// CONSTANTES (identiques à AddRoom)
+// CONSTANTES
 const roomTypes = [
   { value: 'standard', label: 'Chambre Standard' },
   { value: 'superior', label: 'Chambre Supérieure' },
@@ -77,6 +78,8 @@ const EditRoom = () => {
   const toast = useToast()
   const { rooms } = useAppSelector((state) => state.rooms)
   const [loading, setLoading] = useState(false)
+  const [compressing, setCompressing] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [room, setRoom] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
@@ -93,6 +96,42 @@ const EditRoom = () => {
     images: [],
     existingImages: []
   })
+
+  // ✅ FONCTION DE COMPRESSION D'IMAGES
+  const optimizeImage = async (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          // Réduire la taille (max 1200px de large)
+          const maxWidth = 1200;
+          const scale = Math.min(maxWidth / img.width, 1);
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          
+          // Compression à 75% de qualité
+          canvas.toBlob((blob) => {
+            const optimizedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+            
+            console.log(`📊 Compression: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(blob.size / 1024 / 1024).toFixed(2)}MB (${Math.round((1 - blob.size / file.size) * 100)}% réduit)`);
+            
+            resolve(optimizedFile);
+          }, 'image/jpeg', 0.75);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
 
   // Charger la chambre à modifier
   useEffect(() => {
@@ -111,12 +150,15 @@ const EditRoom = () => {
           bedType: foundRoom.bedType || '',
           status: foundRoom.status || 'disponible',
           description: foundRoom.description || '',
-          amenities: foundRoom.amenities || [],
+          // ✅ S'assurer que les amenities sont bien un tableau
+          amenities: Array.isArray(foundRoom.amenities) ? foundRoom.amenities : [],
           images: [],
           existingImages: foundRoom.images || []
         })
         
         console.log('💰 Prix chargé pour modification:', foundRoom.price, 'FCFA')
+        console.log('🎯 Amenities chargées:', foundRoom.amenities)
+        console.log('📸 Images existantes:', foundRoom.images)
       }
     }
 
@@ -154,7 +196,7 @@ const EditRoom = () => {
     return true
   }
 
-  // Fonction de mise à jour de la chambre
+  // ✅ FONCTION CORRIGÉE : Mise à jour de la chambre
   const handleSubmit = async (e) => {
     e.preventDefault()
     
@@ -163,71 +205,69 @@ const EditRoom = () => {
     }
 
     setLoading(true)
+    setUploading(true)
     const toastId = toast.loading('Modification de la chambre en cours...')
 
     try {
-      const submitFormData = new FormData()
+      // ✅ ÉTAPE 1: UPLOAD DES NOUVELLES IMAGES VERS CLOUDINARY
+      let uploadedImages = []
+      const imagesToUpload = formData.images.filter(img => img.file)
       
-      // Ajouter les champs texte
-      submitFormData.append('name', formData.name)
-      submitFormData.append('number', formData.number)
-      submitFormData.append('type', formData.type)
-      submitFormData.append('category', formData.category)
-      submitFormData.append('capacity', formData.capacity.toString())
-      submitFormData.append('price', formData.price.toString())
-      submitFormData.append('size', formData.size)
-      submitFormData.append('bedType', formData.bedType)
-      submitFormData.append('status', formData.status)
-      submitFormData.append('description', formData.description)
-      
-      // ✅ DÉSACTIVER EXPLICITEMENT LES RÉDUCTIONS
-      submitFormData.append('applyDiscount', 'false')
-      submitFormData.append('discountPercentage', '0')
-      submitFormData.append('originalPrice', formData.price.toString())
-      submitFormData.append('forceExactPrice', 'true')
-      
-      // Ajouter les équipements
-      formData.amenities.forEach(amenity => {
-        submitFormData.append('amenities', amenity)
+      if (imagesToUpload.length > 0) {
+        toast.loading(`Upload de ${imagesToUpload.length} nouvelle(s) image(s) vers Cloudinary...`)
+        
+        // Upload vers Cloudinary
+        const uploadResults = await cloudinaryService.uploadMultipleImages(
+          imagesToUpload.map(img => img.file)
+        )
+        
+        // Transformer les résultats en format d'images
+        uploadedImages = uploadResults.map((result, index) => ({
+          url: result.url,
+          cloudinaryId: result.cloudinaryId,
+          alt: `${formData.name || 'Chambre'} - Nouvelle image ${index + 1}`,
+          isPrimary: formData.existingImages.length === 0 && index === 0,
+          order: formData.existingImages.length + index
+        }))
+        
+        console.log('✅ Nouvelles images uploadées sur Cloudinary:', uploadedImages)
+        toast.success(`${uploadedImages.length} nouvelle(s) image(s) uploadée(s) avec succès`)
+      }
+
+      // ✅ ÉTAPE 2: PRÉPARER LES DONNÉES FINALES
+      const roomData = {
+        number: formData.number,
+        name: formData.name,
+        type: formData.type,
+        category: formData.category,
+        capacity: parseInt(formData.capacity),
+        price: parseFloat(formData.price),
+        size: formData.size,
+        bedType: formData.bedType,
+        status: formData.status,
+        description: formData.description,
+        // ✅ CORRECTION : Amenities comme tableau simple
+        amenities: formData.amenities,
+        // ✅ Combiner images existantes et nouvelles
+        images: [...formData.existingImages, ...uploadedImages],
+        applyDiscount: false,
+        discountPercentage: 0,
+        originalPrice: parseFloat(formData.price)
+      }
+
+      console.log('📤 Envoi données chambre modifiée:', {
+        ...roomData,
+        amenities: formData.amenities,
+        totalImages: roomData.images.length
       })
 
-      // Ajouter les images existantes
-      formData.existingImages.forEach((image, index) => {
-        submitFormData.append('existingImages', image)
-      })
-
-      // Ajouter les nouvelles images
-      formData.images.forEach((image, index) => {
-        if (image.file) {
-          submitFormData.append('images', image.file)
-        }
-      })
-
-      console.log('📤 Modification de la chambre:', formData.name)
-      console.log('💰 Prix envoyé:', formData.price, 'FCFA (sans réduction)')
-      console.log('📁 Images existantes:', formData.existingImages.length)
-      console.log('📁 Nouvelles images:', formData.images.length)
-
-      // Appel au service de mise à jour
-      const result = await dispatch(updateRoom({ id, roomData: submitFormData })).unwrap()
+      // ✅ ÉTAPE 3: ENVOYER AU BACKEND
+      const result = await roomService.updateRoom(id, roomData)
       
       toast.dismiss(toastId)
       toast.success(`Chambre "${formData.name}" modifiée avec succès !`)
       
-      console.log('✅ Réponse backend - Chambre modifiée:', result)
-
-      // Vérifier le prix final
-      if (result.chambre) {
-        const finalPrice = result.chambre.price
-        const enteredPrice = parseFloat(formData.price)
-        
-        if (finalPrice !== enteredPrice) {
-          console.warn(`⚠️ Attention: Prix final (${finalPrice}) différent du prix entré (${enteredPrice})`)
-          toast.warning('Le prix a été modifié par le système. Vérifiez la configuration des réductions.')
-        } else {
-          console.log('✅ Prix conservé correctement:', finalPrice, 'FCFA')
-        }
-      }
+      console.log('✅ Réponse backend - Chambre modifiée:', result.data)
 
       // Nettoyer les URLs blob temporaires
       formData.images.forEach(img => {
@@ -261,11 +301,14 @@ const EditRoom = () => {
         toast.error('Accès refusé - Droits administrateur requis')
       } else if (errorMessage.includes('400')) {
         toast.error('Données invalides, vérifiez les champs')
+      } else if (errorMessage.includes('Échec upload image')) {
+        toast.error('Erreur lors de l\'upload des images vers Cloudinary')
       } else {
         toast.error(`Erreur lors de la modification: ${errorMessage}`)
       }
     } finally {
       setLoading(false)
+      setUploading(false)
     }
   }
 
@@ -279,18 +322,18 @@ const EditRoom = () => {
     }))
   }
 
-  // Gestion des nouvelles images
-  const handleImageUpload = (e) => {
+  // ✅ FONCTION UPLOAD AVEC COMPRESSION
+  const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files)
     
     if (files.length === 0) return
 
     const validFiles = files.filter(file => {
-      const isValidType = ['image/jpeg', 'image/jpg', 'image/png'].includes(file.type)
+      const isValidType = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)
       const isValidSize = file.size <= 10 * 1024 * 1024
       
       if (!isValidType) {
-        toast.error('Seuls les fichiers JPG, JPEG et PNG sont autorisés')
+        toast.error('Seuls les fichiers JPG, JPEG, PNG et WebP sont autorisés')
         return false
       }
       
@@ -304,26 +347,50 @@ const EditRoom = () => {
 
     if (validFiles.length === 0) return
 
-    const newImages = validFiles.map((file, index) => ({
-      id: Math.random().toString(36).substr(2, 9),
-      name: file.name,
-      url: URL.createObjectURL(file),
-      alt: `${formData.name || 'Chambre'} - Nouvelle image ${formData.images.length + index + 1}`,
-      file: file,
-      isPrimary: formData.images.length === 0 && formData.existingImages.length === 0 && index === 0,
-      order: formData.images.length + index,
-      isNew: true
-    }))
-    
-    setFormData(prev => ({
-      ...prev,
-      images: [...prev.images, ...newImages]
-    }))
+    setCompressing(true)
+    const compressToastId = toast.loading(`Compression de ${validFiles.length} image(s)...`)
 
-    toast.success(`${validFiles.length} nouvelle(s) image(s) ajoutée(s)`)
+    try {
+      // ⭐ COMPRESSER TOUTES LES IMAGES
+      const optimizedFiles = await Promise.all(
+        validFiles.map(file => optimizeImage(file))
+      )
 
-    if (validFiles.length < files.length) {
-      toast.warning(`${files.length - validFiles.length} fichier(s) invalide(s) ignoré(s)`)
+      const newImages = optimizedFiles.map((file, index) => ({
+        id: Math.random().toString(36).substr(2, 9),
+        name: file.name,
+        url: URL.createObjectURL(file),
+        alt: `${formData.name || 'Chambre'} - Nouvelle image ${formData.images.length + index + 1}`,
+        file: file,
+        isPrimary: formData.images.length === 0 && formData.existingImages.length === 0 && index === 0,
+        order: formData.images.length + index,
+        compressed: true,
+        isNew: true
+      }))
+      
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images, ...newImages]
+      }))
+
+      toast.dismiss(compressToastId)
+      
+      // Calculer la réduction totale
+      const totalOriginalSize = validFiles.reduce((sum, file) => sum + file.size, 0)
+      const totalCompressedSize = optimizedFiles.reduce((sum, file) => sum + file.size, 0)
+      const reductionPercent = Math.round((1 - totalCompressedSize / totalOriginalSize) * 100)
+      
+      toast.success(`${validFiles.length} image(s) compressée(s) - ${reductionPercent}% économisé`)
+
+      if (validFiles.length < files.length) {
+        toast.warning(`${files.length - validFiles.length} fichier(s) invalide(s) ignoré(s)`)
+      }
+    } catch (error) {
+      toast.dismiss(compressToastId)
+      console.error('❌ Erreur compression:', error)
+      toast.error('Erreur lors de la compression des images')
+    } finally {
+      setCompressing(false)
     }
   }
 
@@ -357,9 +424,16 @@ const EditRoom = () => {
   // Définir l'image principale
   const setPrimaryImage = (imageType, imageId) => {
     if (imageType === 'existing') {
-      // Pour les images existantes, on ne peut que marquer laquelle est principale
-      // La logique réelle dépendra de votre backend
-      toast.info('Image principale définie parmi les images existantes')
+      // Pour les images existantes, on réorganise pour mettre celle-ci en premier
+      const imageToPromote = formData.existingImages.find(img => img === imageId)
+      if (imageToPromote) {
+        const otherImages = formData.existingImages.filter(img => img !== imageId)
+        setFormData(prev => ({
+          ...prev,
+          existingImages: [imageToPromote, ...otherImages]
+        }))
+        toast.success('Image principale définie parmi les images existantes')
+      }
     } else {
       setFormData(prev => ({
         ...prev,
@@ -431,11 +505,13 @@ const EditRoom = () => {
         </div>
         <button 
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={loading || uploading || compressing}
           className="bg-blue-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <Save className="w-4 h-4" />
-          <span>{loading ? 'Modification...' : 'Modifier la Chambre'}</span>
+          <span>
+            {compressing ? 'Compression...' : uploading ? 'Upload Cloudinary...' : loading ? 'Modification...' : 'Modifier la Chambre'}
+          </span>
         </button>
       </div>
 
@@ -601,8 +677,8 @@ const EditRoom = () => {
                   {formData.existingImages.map((image, index) => (
                     <div key={index} className="relative group">
                       <img
-                        src={image}
-                        alt={`${formData.name} - Image ${index + 1}`}
+                        src={image.url || image}
+                        alt={`${formData.name} - Image existante ${index + 1}`}
                         className="w-full h-32 object-cover rounded-lg"
                       />
                       <div className="absolute top-2 right-2">
@@ -615,8 +691,25 @@ const EditRoom = () => {
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
+                      {index === 0 && (
+                        <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 text-xs rounded">
+                          Principale
+                        </div>
+                      )}
                       <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 text-xs rounded">
                         Existante {index + 1}
+                      </div>
+                      <div className="absolute bottom-2 right-2">
+                        <button
+                          type="button"
+                          onClick={() => setPrimaryImage('existing', image)}
+                          className="bg-blue-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Définir comme image principale"
+                        >
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -635,14 +728,15 @@ const EditRoom = () => {
                 onChange={handleImageUpload}
                 className="hidden"
                 id="image-upload"
+                disabled={compressing}
               />
               <label 
                 htmlFor="image-upload"
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-700 inline-block"
+                className={`bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-700 inline-block ${compressing ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                Parcourir les fichiers
+                {compressing ? 'Compression en cours...' : 'Parcourir les fichiers'}
               </label>
-              <p className="text-xs text-gray-500 mt-2">PNG, JPG, JPEG jusqu'à 10MB</p>
+              <p className="text-xs text-gray-500 mt-2">PNG, JPG, JPEG, WebP jusqu'à 10MB - Compression automatique</p>
             </div>
 
             {/* Aperçu des nouvelles images */}
@@ -687,6 +781,11 @@ const EditRoom = () => {
                       <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 text-xs rounded">
                         Nouvelle {index + 1}
                       </div>
+                      {image.compressed && (
+                        <div className="absolute bottom-2 right-2 bg-green-500 text-white px-2 py-1 text-xs rounded">
+                          ✅ Optimisée
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
