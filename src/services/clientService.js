@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_BASE_API_URL + '/utilisateurs';
 
-const api = axios.create({
+const api = axios.create({  
   baseURL: API_URL,
   timeout: 10000,
 });

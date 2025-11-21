@@ -25,6 +25,7 @@ import AddReservation from "./dashboard/pages/AddReservation";
 import Login from "./dashboard/pages/Login";
 import SignUp from "./dashboard/pages/SignUp";
 import EditRoom from "./dashboard/pages/EditRooms";
+import PromoCodes from "./dashboard/pages/PromoCodes"
 
 // Initialisation Auth
 const AuthInitializer = ({ children }) => {
@@ -132,6 +133,7 @@ function AppContent() {
           <Route path="payments" element={<Payments />} />
           <Route path="settings" element={<Settings />} />
           <Route path="users" element={<Users />} />
+          <Route path="promocodes" element={<PromoCodes />} />
           <Route path="add-user" element={<AddUser />} />
           <Route path="add-room" element={<AddRoom />} />
           <Route path="add-reservation" element={<AddReservation />} />

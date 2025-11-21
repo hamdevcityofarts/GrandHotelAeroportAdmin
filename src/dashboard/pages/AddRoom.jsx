@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   ArrowLeft, 
@@ -9,13 +9,16 @@ import {
   Home,
   Users,
   Ruler,
-  Bed
+  Bed,
+  Tag,
+  Zap
 } from 'lucide-react'
 import { useToast } from '../../context/ToastContext'
 import { useAppDispatch } from '../../hooks'
 import { createRoom } from '../../store/slices/roomsSlice'
 import roomService from '../../services/roomService'
-import cloudinaryService from '../../services/cloudinaryService' // ✅ NOUVEAU IMPORT
+import cloudinaryService from '../../services/cloudinaryService'
+import promoCodesService from '../../services/promoCodesService'
 
 // CONSTANTES (inchangées)
 const roomTypes = [
@@ -78,6 +81,9 @@ const AddRoom = () => {
   const [loading, setLoading] = useState(false)
   const [compressing, setCompressing] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [availablePromoCodes, setAvailablePromoCodes] = useState([])
+  const [loadingPromos, setLoadingPromos] = useState(false)
+
   const [formData, setFormData] = useState({
     name: '',
     number: '',
@@ -90,8 +96,34 @@ const AddRoom = () => {
     status: 'disponible',
     description: '',
     amenities: [],
-    images: []
+    images: [],
+    // ✅ NOUVEAU: Codes promo associés
+    associatedPromoCodes: []
   })
+
+  // ✅ CHARGER LES CODES PROMO DISPONIBLES
+  useEffect(() => {
+    loadAvailablePromoCodes()
+  }, [])
+
+  const loadAvailablePromoCodes = async () => {
+    setLoadingPromos(true)
+    try {
+      const response = await promoCodesService.getCodesPromo()
+      // Filtrer seulement les codes actifs
+      const activePromos = response.data.codesPromo.filter(code => {
+        const now = new Date()
+        return code.statut === 'actif' && 
+               new Date(code.dateDebut) <= now && 
+               new Date(code.dateFin) >= now
+      })
+      setAvailablePromoCodes(activePromos)
+    } catch (error) {
+      console.log('Aucun code promo disponible')
+    } finally {
+      setLoadingPromos(false)
+    }
+  }
 
   // ✅ FONCTION DE COMPRESSION D'IMAGES
   const optimizeImage = async (file) => {
@@ -103,7 +135,6 @@ const AddRoom = () => {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           
-          // ⭐ RÉDUIRE LA TAILLE (max 1200px de large)
           const maxWidth = 1200;
           const scale = Math.min(maxWidth / img.width, 1);
           canvas.width = img.width * scale;
@@ -111,7 +142,6 @@ const AddRoom = () => {
           
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           
-          // ⭐ COMPRESSION à 75% de qualité
           canvas.toBlob((blob) => {
             const optimizedFile = new File([blob], file.name, {
               type: 'image/jpeg',
@@ -121,7 +151,7 @@ const AddRoom = () => {
             console.log(`📊 Compression: ${(file.size / 1024 / 1024).toFixed(2)}MB → ${(blob.size / 1024 / 1024).toFixed(2)}MB (${Math.round((1 - blob.size / file.size) * 100)}% réduit)`);
             
             resolve(optimizedFile);
-          }, 'image/jpeg', 0.75); // 75% qualité
+          }, 'image/jpeg', 0.75);
         };
         img.src = e.target.result;
       };
@@ -153,7 +183,17 @@ const AddRoom = () => {
     return true
   }
 
-  // ✅ NOUVELLE FONCTION : Upload direct Cloudinary
+  // ✅ GESTION DES CODES PROMO
+  const handlePromoCodeToggle = (promoId) => {
+    setFormData(prev => ({
+      ...prev,
+      associatedPromoCodes: prev.associatedPromoCodes.includes(promoId)
+        ? prev.associatedPromoCodes.filter(id => id !== promoId)
+        : [...prev.associatedPromoCodes, promoId]
+    }))
+  }
+
+  // ✅ SOUMISSION
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -166,19 +206,17 @@ const AddRoom = () => {
     const toastId = toast.loading('Création de la chambre en cours...');
 
     try {
-      // ✅ ÉTAPE 1: UPLOAD DES IMAGES DIRECTEMENT VERS CLOUDINARY
+      // ✅ UPLOAD DES IMAGES
       let uploadedImages = [];
       const imagesToUpload = formData.images.filter(img => img.file);
       
       if (imagesToUpload.length > 0) {
         toast.loading(`Upload de ${imagesToUpload.length} image(s) vers Cloudinary...`);
         
-        // Upload vers Cloudinary
         const uploadResults = await cloudinaryService.uploadMultipleImages(
           imagesToUpload.map(img => img.file)
         );
         
-        // Transformer les résultats en format d'images
         uploadedImages = uploadResults.map((result, index) => ({
           url: result.url,
           cloudinaryId: result.cloudinaryId,
@@ -191,7 +229,7 @@ const AddRoom = () => {
         toast.success(`${uploadedImages.length} image(s) uploadée(s) avec succès`);
       }
 
-      // ✅ ÉTAPE 2: PRÉPARER LES DONNÉES SANS FILES
+      // ✅ PRÉPARER LES DONNÉES
       const roomData = {
         number: formData.number,
         name: formData.name,
@@ -204,15 +242,17 @@ const AddRoom = () => {
         status: formData.status,
         description: formData.description,
         amenities: formData.amenities,
-        images: uploadedImages, // ✅ URLs Cloudinary directement
+        images: uploadedImages,
         applyDiscount: false,
         discountPercentage: 0,
-        originalPrice: parseFloat(formData.price)
+        originalPrice: parseFloat(formData.price),
+        // ✅ NOUVEAU: Codes promo associés
+        associatedPromoCodes: formData.associatedPromoCodes
       };
 
       console.log('📤 Envoi données chambre au backend:', roomData);
 
-      // ✅ ÉTAPE 3: ENVOYER AU BACKEND (SANS IMAGES)
+      // ✅ ENVOYER AU BACKEND
       const result = await roomService.createRoom(roomData);
       
       toast.dismiss(toastId);
@@ -249,7 +289,7 @@ const AddRoom = () => {
     }
   }
 
-  // Autres fonctions (inchangées)
+  // FONCTIONS EXISTANTES (inchangées)
   const handleAmenityToggle = (amenityId) => {
     setFormData(prev => ({
       ...prev,
@@ -259,7 +299,6 @@ const AddRoom = () => {
     }))
   }
 
-  // ✅ FONCTION UPLOAD AVEC COMPRESSION
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files)
     
@@ -267,7 +306,7 @@ const AddRoom = () => {
 
     const validFiles = files.filter(file => {
       const isValidType = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)
-      const isValidSize = file.size <= 10 * 1024 * 1024 // 10MB max avant compression
+      const isValidSize = file.size <= 10 * 1024 * 1024
       
       if (!isValidType) {
         toast.error('Seuls les fichiers JPG, JPEG, PNG et WebP sont autorisés')
@@ -288,7 +327,6 @@ const AddRoom = () => {
     const compressToastId = toast.loading(`Compression de ${validFiles.length} image(s)...`)
 
     try {
-      // ⭐ COMPRESSER TOUTES LES IMAGES
       const optimizedFiles = await Promise.all(
         validFiles.map(file => optimizeImage(file))
       )
@@ -301,7 +339,7 @@ const AddRoom = () => {
         file: file,
         isPrimary: formData.images.length === 0 && index === 0,
         order: formData.images.length + index,
-        compressed: true // Marquer comme compressé
+        compressed: true
       }))
       
       setFormData(prev => ({
@@ -311,7 +349,6 @@ const AddRoom = () => {
 
       toast.dismiss(compressToastId)
       
-      // Calculer la réduction totale
       const totalOriginalSize = validFiles.reduce((sum, file) => sum + file.size, 0)
       const totalCompressedSize = optimizedFiles.reduce((sum, file) => sum + file.size, 0)
       const reductionPercent = Math.round((1 - totalCompressedSize / totalOriginalSize) * 100)
@@ -370,7 +407,6 @@ const AddRoom = () => {
   }
 
   const handleNumberChange = (field, value) => {
-    // Validation pour le prix - accepter uniquement des nombres positifs
     if (field === 'price') {
       const numericValue = value === '' ? '' : parseFloat(value)
       if (value === '' || (!isNaN(numericValue) && numericValue >= 0)) {
@@ -409,7 +445,8 @@ const AddRoom = () => {
       status: 'disponible',
       description: '',
       amenities: [],
-      images: []
+      images: [],
+      associatedPromoCodes: []
     })
     toast.success('Formulaire réinitialisé')
   }
@@ -428,6 +465,11 @@ const AddRoom = () => {
     } else {
       navigate('/dashboard/rooms')
     }
+  }
+
+  // ✅ FORMATER LE PRIX
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat('fr-FR').format(price) + ' FCFA';
   }
 
   return (
@@ -576,6 +618,94 @@ const AddRoom = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Décrivez la chambre, ses caractéristiques spéciales, la vue, etc."
             />
+          </div>
+
+          {/* ✅ NOUVELLE SECTION : CODES PROMOTIONNELS */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold mb-6 flex items-center">
+              <Tag className="w-5 h-5 mr-2 text-purple-600" />
+              Codes Promotionnels Associés
+            </h2>
+            
+            {loadingPromos ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto"></div>
+                <p className="text-gray-500 text-sm mt-2">Chargement des codes promo...</p>
+              </div>
+            ) : availablePromoCodes.length > 0 ? (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600 mb-4">
+                  Sélectionnez les codes promotionnels qui s'appliqueront à cette chambre
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-80 overflow-y-auto p-2">
+                  {availablePromoCodes.map((promo) => (
+                    <label 
+                      key={promo._id}
+                      className={`flex items-start space-x-3 p-4 rounded-lg border cursor-pointer transition-all ${
+                        formData.associatedPromoCodes.includes(promo._id)
+                          ? 'bg-purple-50 border-purple-300 shadow-sm'
+                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData.associatedPromoCodes.includes(promo._id)}
+                        onChange={() => handlePromoCodeToggle(promo._id)}
+                        className="mt-1 text-purple-600 focus:ring-purple-500"
+                      />
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <span className="font-mono font-bold text-purple-700">{promo.code}</span>
+                            <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${
+                              promo.type === 'percentage' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {promo.type === 'percentage' ? `${promo.value}%` : `-${formatPrice(promo.value)}`}
+                            </span>
+                          </div>
+                          <div className="flex items-center text-orange-500 text-sm">
+                            <Zap className="w-3 h-3 mr-1" />
+                            Actif
+                          </div>
+                        </div>
+                        
+                        <p className="text-sm text-gray-700 mb-2">{promo.description}</p>
+                        
+                        <div className="text-xs text-gray-500 space-y-1">
+                          <div>📅 Valide jusqu'au {new Date(promo.dateFin).toLocaleDateString('fr-FR')}</div>
+                          <div>🔢 {promo.utilisationActuelle}/{promo.utilisationMax} utilisations</div>
+                          {promo.minimumStay > 1 && (
+                            <div>🌙 Séjour min: {promo.minimumStay} nuit(s)</div>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                
+                {formData.associatedPromoCodes.length > 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-4">
+                    <div className="flex items-center text-green-800">
+                      <Tag className="w-4 h-4 mr-2" />
+                      <span className="font-medium">
+                        {formData.associatedPromoCodes.length} code(s) promo sélectionné(s)
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <Tag className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 text-sm">Aucun code promotionnel actif disponible</p>
+                <p className="text-gray-400 text-xs mt-1">
+                  Créez d'abord des codes promo dans la section dédiée
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Équipements */}
@@ -808,6 +938,7 @@ const AddRoom = () => {
             </div>
           </div>
         </div>
+
       </form>
     </div>
   )

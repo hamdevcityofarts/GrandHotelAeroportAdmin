@@ -85,17 +85,26 @@ const Rooms = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Gestion des Chambres</h1>
-        <Link
-          to="/dashboard/add-room"
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 hover:bg-blue-700"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Ajouter une Chambre</span>
-        </Link>
-      </div>
+     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+  <h1 className="text-3xl font-bold text-gray-900">Gestion des Chambres</h1>
+  
+  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+    <Link
+      to="/dashboard/promocodes"
+      className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center justify-center hover:bg-blue-700"
+    >
+      <span>Gestion des codes Promos</span>
+    </Link>
 
+    <Link
+      to="/dashboard/add-room"
+      className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center justify-center hover:bg-blue-700"
+    >
+      <Plus className="w-4 h-4" />
+      <span>Ajouter une Chambre</span>
+    </Link>
+  </div>
+</div>
       {/* Message d'erreur */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
