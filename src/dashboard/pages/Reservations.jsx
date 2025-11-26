@@ -26,7 +26,7 @@ const Reservations = () => {
   };
 
   // Charger les réservations initiales
-  const loadReservations = async (reset = false) => {
+ const loadReservations = async (reset = false) => {
     try {
       if (reset) {
         setLoading(true)
@@ -284,11 +284,13 @@ const Reservations = () => {
   return (
     <div className="space-y-6">
       {/* En-tête avec boutons */}
+
+      {/* En-tête avec boutons */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gestion des Réservations</h1>
           <p className="text-gray-600 mt-1 text-sm sm:text-base">
-            {filteredReservations.length} réservation(s) {statusFilter !== 'all' ? `avec statut "${getStatusText(statusFilter)}"` : 'trouvée(s)'}
+            {reservations.length} réservation(s) {statusFilter !== 'all' ? `avec statut "${getStatusText(statusFilter)}"` : 'trouvée(s)'}
             {allReservationsLoaded && ' • Toutes les réservations sont chargées'}
             {hasMore && !allReservationsLoaded && ' • Défilez pour charger plus'}
           </p>
@@ -397,35 +399,51 @@ const Reservations = () => {
 
       {/* Tableau des Réservations */}
       <TableCard
-        title={`Réservations ${statusFilter !== 'all' ? `- ${getStatusText(statusFilter)}` : ''} (${filteredReservations.length})`}
+        title={`Réservations ${statusFilter !== 'all' ? `- ${getStatusText(statusFilter)}` : ''} (${reservations.length})`}
         headers={['Client', 'Chambre', 'Dates', 'Nuits', 'Statut', 'Montant', 'Actions']}
-        data={filteredReservations}
+        data={reservations}
         emptyMessage={
           statusFilter !== 'all' 
             ? `Aucune réservation avec le statut "${getStatusText(statusFilter)}"`
             : 'Aucune réservation trouvée'
         }
         renderRow={(reservation, index) => {
-          const isLastElement = index === filteredReservations.length - 1
+          const isLastElement = index === reservations.length - 1
           const shouldAttachObserver = isLastElement && hasMore && !loadingMore
           
           return (
-            <tr 
+           <tr 
               key={reservation._id} 
               ref={shouldAttachObserver ? lastReservationElementRef : null}
               className="hover:bg-gray-50 border-b border-gray-200"
             >
               {/* Client */}
-              <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+                           <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                 <div className="flex items-center">
                   <User className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" />
                   <div className="min-w-0">
                     <div className="text-sm font-medium text-gray-900 truncate">
-                      {reservation.client?.name} {reservation.client?.surname}
+                      {reservation.client ? 
+                        `${reservation.client.name} ${reservation.client.surname}` : 
+                        'Client non associé'
+                      }
                     </div>
-                    <div className="text-xs text-gray-500 truncate">
-                      {reservation.client?.email}
+                    <div className="text-xs text-gray-500 truncate flex items-center">
+                      {reservation.client ? (
+                        <>
+                          <Mail className="w-3 h-3 mr-1" />
+                          {reservation.client.email}
+                        </>
+                      ) : (
+                        'Aucun email'
+                      )}
                     </div>
+                    {reservation.client?.phone && (
+                      <div className="text-xs text-gray-500 truncate flex items-center">
+                        <Phone className="w-3 h-3 mr-1" />
+                        {reservation.client.phone}
+                      </div>
+                    )}
                   </div>
                 </div>
               </td>

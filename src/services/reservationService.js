@@ -8,6 +8,7 @@ const api = axios.create({
 });
 
 // Intercepteur pour debugger les requêtes
+// Intercepteur pour debugger les requêtes
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -16,6 +17,8 @@ api.interceptors.request.use((config) => {
   console.log(`🚀 ${config.method?.toUpperCase()} ${config.url}`, config.params || config.data);
   return config;
 });
+
+
 
 // Intercepteur pour debugger les réponses
 api.interceptors.response.use(
@@ -35,13 +38,11 @@ const reservationService = {
     try {
       const { page = 1, limit = 10, status, search } = params;
       
-      // Construire les paramètres de requête
       const queryParams = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString()
       });
 
-      // Ajouter les filtres optionnels
       if (status && status !== 'all') {
         queryParams.append('status', status);
       }
@@ -53,12 +54,34 @@ const reservationService = {
       console.log(`📋 Chargement page ${page}, limite ${limit}, statut: ${status || 'all'}`);
       
       const response = await api.get(`/reservations?${queryParams.toString()}`);
+      
+      // ✅ LOG DES DONNÉES CLIENT POUR DEBUG
+      if (response.data.reservations && response.data.reservations.length > 0) {
+        console.log('👥 Données client dans les réservations:');
+        response.data.reservations.forEach((res, index) => {
+          console.log(`  ${index + 1}. Réservation ${res._id} - Client:`, res.client ? 
+            `${res.client.name} ${res.client.surname} (${res.client.email})` : 'Aucun client associé'
+          );
+        });
+      }
+      
       return response.data;
     } catch (error) {
       console.error('❌ Erreur récupération réservations:', error.response?.data || error.message);
       throw error;
     }
   },
+// ✅ NOUVEAU: Récupérer les réservations d'un utilisateur spécifique
+  async getUserReservations(userId) {
+    try {
+      const response = await api.get(`/reservations/user/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Erreur récupération réservations utilisateur:', error);
+      throw error;
+    }
+  },
+
 
   // ✅ OBTENIR TOUTES LES RÉSERVATIONS (sans pagination - pour compatibilité)
   async getAllReservations() {
