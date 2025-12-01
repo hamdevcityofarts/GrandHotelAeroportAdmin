@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   Plus, Search, Filter, Edit, Trash2, CheckCircle, XCircle, 
-  Eye, Calendar, User, RefreshCw, Loader 
+  Eye, Calendar, User, RefreshCw, Loader , Mail, Phone
 } from 'lucide-react'
 import TableCard from '../components/TableCard'
 import { useToast } from '../../context/ToastContext'
