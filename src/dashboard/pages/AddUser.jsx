@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   ArrowLeft, 
@@ -10,7 +10,8 @@ import {
   Building,
   Calendar,
   Eye,
-  EyeOff
+  EyeOff,
+  AlertCircle
 } from 'lucide-react'
 import { useToast } from '../../context/ToastContext'
 import userService from '../../services/userService'
@@ -63,66 +64,228 @@ const AddUser = () => {
     { id: 'gestion_restaurant', label: 'Gestion restaurant' }
   ]
 
-  // ✅ FONCTION DE VALIDATION AMÉLIORÉE
+  // ✅ NOUVELLE SECTION : Mapping rôles → permissions par défaut
+  const rolePermissionsMap = {
+    'admin': allPermissions.map(p => p.id), // Admin = toutes les permissions
+    'manager': [
+      'gestion_chambres',
+      'gestion_reservations', 
+      'gestion_clients',
+      'rapports',
+      'gestion_menage',
+      'gestion_restaurant'
+    ],
+    'receptionist': [
+      'gestion_reservations',
+      'gestion_clients'
+    ],
+    'housekeeper': [
+      'gestion_menage'
+    ],
+    'supervisor': [
+      'gestion_chambres',
+      'gestion_reservations',
+      'gestion_clients',
+      'gestion_menage',
+      'gestion_restaurant'
+    ],
+    'technician': [
+      'gestion_chambres'
+    ]
+  }
+
+  // ✅ NOUVELLE SECTION : Mapping rôles → département par défaut
+  const roleDepartmentMap = {
+    'admin': 'direction',
+    'manager': 'direction',
+    'receptionist': 'reception',
+    'housekeeper': 'housekeeping',
+    'supervisor': 'direction',
+    'technician': 'maintenance'
+  }
+
+  // ✅ NOUVELLE FONCTION : Appliquer les permissions par défaut selon le rôle
+  const applyDefaultPermissions = (role) => {
+    if (!role) return [];
+    
+    const defaultPermissions = rolePermissionsMap[role] || [];
+    console.log('🎯 Application permissions par défaut pour rôle:', {
+      role,
+      permissionsParDefaut: defaultPermissions,
+      nombrePermissions: defaultPermissions.length
+    });
+    
+    return [...defaultPermissions]; // Retourne une copie
+  }
+
+  // ✅ NOUVELLE FONCTION : Appliquer le département par défaut selon le rôle
+  const getDefaultDepartment = (role) => {
+    if (!role) return '';
+    
+    const defaultDepartment = roleDepartmentMap[role] || '';
+    console.log('🎯 Département par défaut pour rôle:', {
+      role,
+      departementParDefaut: defaultDepartment
+    });
+    
+    return defaultDepartment;
+  }
+
+  // ✅ NOUVELLE FONCTION : Vérifier si l'utilisateur est admin
+  const isAdminRole = (role) => {
+    return role === 'admin';
+  }
+
+  // ✅ FONCTION CORRIGÉE : Gérer le changement de rôle (avec département automatique)
+  const handleRoleChange = (newRole) => {
+    console.log('🔄 Changement de rôle détecté:', {
+      ancienRole: formData.role,
+      nouveauRole: newRole,
+      estAdmin: isAdminRole(newRole)
+    });
+
+    // Appliquer les permissions par défaut selon le rôle
+    const defaultPermissions = applyDefaultPermissions(newRole);
+    
+    // Appliquer le département par défaut selon le rôle
+    const defaultDepartment = getDefaultDepartment(newRole);
+    
+    // Si admin, forcer toutes les permissions
+    const finalPermissions = isAdminRole(newRole) 
+      ? allPermissions.map(p => p.id)  // Admin = TOUTES les permissions
+      : defaultPermissions;             // Autres rôles = permissions par défaut
+
+    console.log('✅ Configuration appliquée:', {
+      permissions: finalPermissions,
+      departement: defaultDepartment,
+      nombrePermissions: finalPermissions.length
+    });
+
+    // Mettre à jour TOUS les champs en une seule fois
+    setFormData(prev => ({
+      ...prev,
+      role: newRole,
+      department: defaultDepartment || prev.department, // Garder l'ancien si pas de défaut
+      permissions: finalPermissions
+    }));
+
+    // Afficher un message à l'utilisateur
+    if (isAdminRole(newRole)) {
+      toast.info('Toutes les permissions ont été activées automatiquement pour le rôle Administrateur');
+    } else if (defaultPermissions.length > 0) {
+      const roleLabel = roles.find(r => r.value === newRole)?.label || newRole;
+      const deptLabel = departments.find(d => d.value === defaultDepartment)?.label || '';
+      
+      let message = `Permissions par défaut appliquées pour le rôle ${roleLabel}`;
+      if (defaultDepartment) {
+        message += ` (Département: ${deptLabel})`;
+      }
+      
+      toast.info(message);
+    }
+  }
+
+  // ✅ FONCTION DE VALIDATION AMÉLIORÉE (avec messages plus précis)
   const validateForm = () => {
-    const requiredFields = ['firstName', 'lastName', 'email', 'password', 'department', 'role']
-    const missingFields = requiredFields.filter(field => !formData[field])
+    const requiredFields = [
+      { field: 'firstName', label: 'Prénom' },
+      { field: 'lastName', label: 'Nom' },
+      { field: 'email', label: 'Email' },
+      { field: 'password', label: 'Mot de passe' },
+      { field: 'department', label: 'Département' },
+      { field: 'role', label: 'Rôle' }
+    ];
+    
+    const missingFields = requiredFields.filter(({ field }) => !formData[field] || formData[field].trim() === '');
     
     if (missingFields.length > 0) {
-      toast.error('Veuillez remplir tous les champs obligatoires')
-      return false
+      const fieldNames = missingFields.map(({ label }) => label).join(', ');
+      toast.error(`Veuillez remplir les champs obligatoires: ${fieldNames}`);
+      
+      // Log détaillé pour le débogage
+      console.log('❌ Champs manquants:', missingFields.map(f => ({
+        champ: f.field,
+        valeur: formData[f.field],
+        label: f.label
+      })));
+      
+      return false;
     }
 
     // Validation email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-      toast.error('Veuillez entrer une adresse email valide')
-      return false
+      toast.error('Veuillez entrer une adresse email valide');
+      return false;
     }
 
     // Validation mot de passe
     if (formData.password.length < 8) {
-      toast.error('Le mot de passe doit contenir au moins 8 caractères')
-      return false
+      toast.error('Le mot de passe doit contenir au moins 8 caractères');
+      return false;
     }
 
-    return true
+    console.log('✅ Formulaire validé avec succès');
+    return true;
   }
 
   // ✅ FONCTION DE SOUMISSION CORRIGÉE
   const handleSubmit = async (e) => {
     e.preventDefault()
     
+    console.log('📋 Soumission du formulaire:', {
+      formData,
+      departmentValeur: formData.department,
+      departmentLabel: departments.find(d => d.value === formData.department)?.label
+    });
+    
     if (!validateForm()) {
-      return
+      return;
     }
 
     setLoading(true)
     const toastId = toast.loading('Création de l\'utilisateur en cours...')
 
     try {
-      // ✅ PRÉPARATION DES DONNÉES POUR L'API
+      // ✅ VALIDATION FINALE DES PERMISSIONS
+      let finalPermissions = [...formData.permissions];
+      
+      // Si admin, s'assurer qu'il a toutes les permissions
+      if (isAdminRole(formData.role)) {
+        finalPermissions = allPermissions.map(p => p.id);
+        console.log('🔒 Vérification admin: toutes permissions forcées');
+      }
+
+      // ✅ S'assurer qu'un département est défini (au cas où)
+      const finalDepartment = formData.department || getDefaultDepartment(formData.role);
+
+      // PRÉPARATION DES DONNÉES POUR L'API
       const userData = {
-        name: formData.firstName,
-        surname: formData.lastName,
-        email: formData.email,
-        phone: formData.phone || '',
-        department: formData.department,
+        name: formData.firstName.trim(),
+        surname: formData.lastName.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone ? formData.phone.trim() : '',
+        department: finalDepartment,
         role: formData.role,
         hireDate: formData.hireDate || new Date().toISOString(),
         password: formData.password,
         status: formData.status,
-        permissions: formData.permissions
+        permissions: finalPermissions
       }
 
-      console.log('📤 [ADD USER] Données utilisateur envoyées:', userData)
+      console.log('📤 [ADD USER] Données utilisateur envoyées:', {
+        ...userData,
+        departmentLabel: departments.find(d => d.value === userData.department)?.label,
+        permissionsCount: userData.permissions.length,
+        permissionsList: userData.permissions
+      })
 
-      // ✅ APPEL RÉEL AU SERVICE
+      // APPEL RÉEL AU SERVICE
       const response = await userService.createUser(userData)
       
       toast.dismiss(toastId)
       
-      // ✅ GESTION DE LA RÉPONSE
+      // GESTION DE LA RÉPONSE
       if (response.data) {
         toast.success(`Utilisateur "${formData.firstName} ${formData.lastName}" créé avec succès !`)
         console.log('✅ [ADD USER] Utilisateur créé:', response.data)
@@ -145,7 +308,7 @@ const AddUser = () => {
         stack: error.stack
       })
       
-      // ✅ GESTION D'ERREURS AMÉLIORÉE
+      // GESTION D'ERREURS AMÉLIORÉE
       let errorMessage = 'Erreur inconnue lors de la création'
       
       if (error.response?.data?.message) {
@@ -175,19 +338,44 @@ const AddUser = () => {
   }
 
   const handlePermissionToggle = (permissionId) => {
-    setFormData(prev => ({
-      ...prev,
-      permissions: prev.permissions.includes(permissionId)
+    setFormData(prev => {
+      const newPermissions = prev.permissions.includes(permissionId)
         ? prev.permissions.filter(id => id !== permissionId)
         : [...prev.permissions, permissionId]
-    }))
+      
+      console.log('🔧 Permission modifiée:', {
+        permission: permissionId,
+        nouvelleValeur: !prev.permissions.includes(permissionId),
+        totalPermissions: newPermissions.length
+      })
+      
+      return {
+        ...prev,
+        permissions: newPermissions
+      }
+    })
   }
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
+    // Si changement de rôle, utiliser la fonction spéciale
+    if (field === 'role') {
+      handleRoleChange(value)
+    } else if (field === 'department') {
+      // Si l'utilisateur change manuellement le département après sélection automatique
+      console.log('🔧 Changement manuel du département:', {
+        ancien: formData.department,
+        nouveau: value
+      });
+      setFormData(prev => ({
+        ...prev,
+        [field]: value
+      }))
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [field]: value
+      }))
+    }
   }
 
   const generateRandomPassword = () => {
@@ -210,6 +398,51 @@ const AddUser = () => {
     }
   }
 
+  // ✅ NOUVELLE FONCTION : Remplir automatiquement avec des données de test
+  const fillTestData = (role = 'receptionist') => {
+    const testData = {
+      admin: {
+        firstName: 'Admin',
+        lastName: 'Test',
+        email: `admin.test${Date.now()}@hotel.com`,
+        phone: '+33 1 23 45 67 89',
+        password: 'Password123!',
+        role: 'admin',
+        department: 'direction'
+      },
+      receptionist: {
+        firstName: 'Réceptionniste',
+        lastName: 'Test',
+        email: `reception.test${Date.now()}@hotel.com`,
+        phone: '+33 1 23 45 67 90',
+        password: 'Password123!',
+        role: 'receptionist',
+        department: 'reception'
+      },
+      manager: {
+        firstName: 'Manager',
+        lastName: 'Test',
+        email: `manager.test${Date.now()}@hotel.com`,
+        phone: '+33 1 23 45 67 91',
+        password: 'Password123!',
+        role: 'manager',
+        department: 'direction'
+      }
+    };
+
+    const data = testData[role] || testData.receptionist;
+    
+    setFormData(prev => ({
+      ...prev,
+      ...data,
+      hireDate: new Date().toISOString().split('T')[0],
+      status: 'actif',
+      permissions: applyDefaultPermissions(data.role)
+    }));
+
+    toast.info(`Données de test ${roles.find(r => r.value === role)?.label} remplies`);
+  };
+
   return (
     <div className="space-y-6">
       {/* En-tête */}
@@ -226,14 +459,24 @@ const AddUser = () => {
             <p className="text-gray-600">Créez un nouveau compte utilisateur</p>
           </div>
         </div>
-        <button 
-          onClick={handleSubmit}
-          disabled={loading}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          <Save className="w-4 h-4" />
-          <span>{loading ? 'Création...' : 'Créer l\'Utilisateur'}</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          {/* ✅ BOUTON DE TEST FACULTATIF */}
+          <button 
+            type="button"
+            onClick={() => fillTestData('receptionist')}
+            className="bg-purple-100 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-200 transition-colors text-sm"
+          >
+            Données test
+          </button>
+          <button 
+            onClick={handleSubmit}
+            disabled={loading}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Save className="w-4 h-4" />
+            <span>{loading ? 'Création...' : 'Créer l\'Utilisateur'}</span>
+          </button>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -315,6 +558,11 @@ const AddUser = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Département *
+                  {formData.role && roleDepartmentMap[formData.role] && (
+                    <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                      Auto-sélectionné
+                    </span>
+                  )}
                 </label>
                 <select
                   required
@@ -329,6 +577,11 @@ const AddUser = () => {
                     </option>
                   ))}
                 </select>
+                {formData.role && roleDepartmentMap[formData.role] === formData.department && (
+                  <p className="text-xs text-green-600 mt-1">
+                    ✓ Département automatiquement sélectionné pour un {roles.find(r => r.value === formData.role)?.label?.toLowerCase()}
+                  </p>
+                )}
               </div>
               
               <div>
@@ -432,8 +685,21 @@ const AddUser = () => {
 
           {/* Permissions */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-semibold mb-4">Permissions</h2>
-            <p className="text-gray-600 mb-4">Sélectionnez les permissions accordées à cet utilisateur</p>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Permissions</h2>
+              {/* ✅ NOUVEAU : Indicateur de rôle admin */}
+              {isAdminRole(formData.role) && (
+                <div className="flex items-center bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
+                  <AlertCircle className="w-4 h-4 mr-1" />
+                  <span className="text-sm font-medium">Administrateur - Toutes permissions activées</span>
+                </div>
+              )}
+            </div>
+            <p className="text-gray-600 mb-4">
+              {isAdminRole(formData.role) 
+                ? "L'administrateur a automatiquement toutes les permissions. Vous pouvez les désactiver manuellement si nécessaire."
+                : "Sélectionnez les permissions accordées à cet utilisateur. Les permissions par défaut sont pré-sélectionnées selon le rôle."}
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {allPermissions.map(permission => (
                 <label 
@@ -442,18 +708,28 @@ const AddUser = () => {
                     formData.permissions.includes(permission.id)
                       ? 'bg-blue-50 border-blue-200 text-blue-700'
                       : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
-                  }`}
+                  } ${isAdminRole(formData.role) ? 'opacity-100' : ''}`}
+                  title={isAdminRole(formData.role) ? "Administrateur - Permission activée" : permission.label}
                 >
                   <input
                     type="checkbox"
                     checked={formData.permissions.includes(permission.id)}
                     onChange={() => handlePermissionToggle(permission.id)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    disabled={isAdminRole(formData.role)} // Admin ne peut pas désactiver
                   />
                   <span className="text-sm font-medium">{permission.label}</span>
                 </label>
               ))}
             </div>
+            {isAdminRole(formData.role) && (
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ <strong>Note :</strong> Les administrateurs ont toutes les permissions par défaut. 
+                  Vous pouvez modifier cette configuration manuellement en décochant les permissions non souhaitées.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -499,17 +775,22 @@ const AddUser = () => {
 
           {/* Permissions sélectionnées */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h3 className="font-semibold mb-4">Permissions Sélectionnées</h3>
-            <div className="space-y-2">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold">Permissions Sélectionnées</h3>
+              <span className="text-xs text-gray-500">
+                {formData.permissions.length} / {allPermissions.length}
+              </span>
+            </div>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
               {formData.permissions.length === 0 ? (
                 <p className="text-gray-500 text-sm">Aucune permission sélectionnée</p>
               ) : (
                 formData.permissions.map(permissionId => {
                   const permission = allPermissions.find(p => p.id === permissionId)
                   return (
-                    <div key={permissionId} className="flex items-center space-x-2 text-sm">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span>{permission?.label}</span>
+                    <div key={permissionId} className="flex items-center space-x-2 text-sm p-2 hover:bg-gray-50 rounded">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                      <span className="truncate">{permission?.label}</span>
                     </div>
                   )
                 })
@@ -530,24 +811,50 @@ const AddUser = () => {
               </button>
               <button 
                 type="button"
-                onClick={() => setFormData({
-                  firstName: '',
-                  lastName: '',
-                  email: '',
-                  phone: '',
-                  department: '',
-                  role: '',
-                  hireDate: '',
-                  password: '',
-                  status: 'actif',
-                  permissions: []
-                })}
+                onClick={() => {
+                  setFormData({
+                    firstName: '',
+                    lastName: '',
+                    email: '',
+                    phone: '',
+                    department: '',
+                    role: '',
+                    hireDate: '',
+                    password: '',
+                    status: 'actif',
+                    permissions: []
+                  });
+                  toast.info('Formulaire réinitialisé');
+                }}
                 className="w-full bg-red-100 text-red-700 py-2 px-4 rounded-lg hover:bg-red-200 transition-colors"
               >
                 Tout effacer
               </button>
             </div>
           </div>
+
+          {/* ✅ NOUVELLE SECTION : Informations de débogage (optionnel) */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+              <h3 className="font-semibold text-sm mb-2 text-gray-700">Debug Info</h3>
+              <div className="text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span>Département:</span>
+                  <span className="font-mono">{formData.department || 'vide'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Permissions:</span>
+                  <span className="font-mono">{formData.permissions.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Dépt auto:</span>
+                  <span className="font-mono">
+                    {formData.role ? roleDepartmentMap[formData.role] || 'non' : 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </form>
     </div>

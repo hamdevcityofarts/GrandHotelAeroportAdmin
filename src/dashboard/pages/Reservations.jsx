@@ -26,7 +26,7 @@ const Reservations = () => {
   };
 
   // Charger les réservations initiales
- const loadReservations = async (reset = false) => {
+  const loadReservations = async (reset = false) => {
     try {
       if (reset) {
         setLoading(true)
@@ -140,7 +140,7 @@ const Reservations = () => {
     })
     
     if (node) observer.current.observe(node)
-  }, [loadingMore, hasMore, statusFilter])
+  }, [loadingMore, hasMore])
 
   // Chargement initial
   useEffect(() => {
@@ -186,13 +186,9 @@ const Reservations = () => {
     }
   }
 
-  // Filtrer côté client en fallback
-  const filteredReservations = reservations.filter(reservation => {
-    if (statusFilter === 'all') return true
-    return reservation.status === statusFilter
-  })
+  // ✅ SUPPRIMÉ : Filtrer côté client en fallback - TOUS LES UTILISATEURS VOIENT TOUTES LES RÉSERVATIONS
 
-  // Actions sur les réservations
+  // Actions sur les réservations - ✅ TOUTES DISPONIBLES SANS RESTRICTION
   const confirmReservation = async (id) => {
     try {
       const response = await reservationService.confirmReservation(id)
@@ -223,7 +219,7 @@ const Reservations = () => {
     }
   }
 
-  // Supprimer définitivement une réservation
+  // ✅ SUPPRIMER DÉFINITIVEMENT - DISPONIBLE POUR TOUS
   const deleteReservation = async (id) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer définitivement cette réservation ? Cette action est irréversible.')) {
       return
@@ -250,7 +246,7 @@ const Reservations = () => {
     navigate('/dashboard/add-reservation')
   }
 
-  // Calculer les statistiques
+  // Calculer les statistiques - ✅ VISIBLES PAR TOUS
   const getReservationStats = () => {
     const totalReservations = reservations.length
     const pending = reservations.filter(r => r.status === 'pending').length
@@ -284,8 +280,6 @@ const Reservations = () => {
   return (
     <div className="space-y-6">
       {/* En-tête avec boutons */}
-
-      {/* En-tête avec boutons */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gestion des Réservations</h1>
@@ -313,7 +307,7 @@ const Reservations = () => {
         </div>
       </div>
 
-      {/* Filtres et Recherche */}
+      {/* Filtres et Recherche - ✅ ACCESSIBLES PAR TOUS */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Recherche */}
@@ -357,7 +351,7 @@ const Reservations = () => {
         </div>
       </div>
 
-      {/* STATISTIQUES RAPIDES */}
+      {/* STATISTIQUES RAPIDES - ✅ VISIBLES PAR TOUS */}
       {reservations.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -397,7 +391,7 @@ const Reservations = () => {
         </div>
       )}
 
-      {/* Tableau des Réservations */}
+      {/* Tableau des Réservations - ✅ ACCÈS COMPLET À TOUTES LES RÉSERVATIONS */}
       <TableCard
         title={`Réservations ${statusFilter !== 'all' ? `- ${getStatusText(statusFilter)}` : ''} (${reservations.length})`}
         headers={['Client', 'Chambre', 'Dates', 'Nuits', 'Statut', 'Montant', 'Actions']}
@@ -412,13 +406,13 @@ const Reservations = () => {
           const shouldAttachObserver = isLastElement && hasMore && !loadingMore
           
           return (
-           <tr 
+            <tr 
               key={reservation._id} 
               ref={shouldAttachObserver ? lastReservationElementRef : null}
               className="hover:bg-gray-50 border-b border-gray-200"
             >
               {/* Client */}
-                           <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
+              <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap">
                 <div className="flex items-center">
                   <User className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0" />
                   <div className="min-w-0">
@@ -496,7 +490,7 @@ const Reservations = () => {
                 )}
               </td>
 
-              {/* Actions */}
+              {/* Actions - ✅ TOUTES LES ACTIONS DISPONIBLES SANS RESTRICTION */}
               <td className="px-4 py-3 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium">
                 <div className="flex space-x-1 sm:space-x-2">
                   {/* Voir/Modifier */}
@@ -508,7 +502,7 @@ const Reservations = () => {
                     <Eye className="w-4 h-4" />
                   </button>
 
-                  {/* Bouton Supprimer */}
+                  {/* Bouton Supprimer - ✅ TOUJOURS VISIBLE */}
                   <button
                     onClick={() => deleteReservation(reservation._id)}
                     className="text-red-600 hover:text-red-900 p-1 rounded transition-colors"
@@ -564,9 +558,9 @@ const Reservations = () => {
       )}
 
       {/* Message quand toutes les réservations sont chargées */}
-      {allReservationsLoaded && filteredReservations.length > 0 && (
+      {allReservationsLoaded && reservations.length > 0 && (
         <div className="text-center py-4 text-gray-500 text-sm border-t border-gray-200">
-          ✅ Toutes les réservations sont chargées ({filteredReservations.length} au total)
+          ✅ Toutes les réservations sont chargées ({reservations.length} au total)
         </div>
       )}
 

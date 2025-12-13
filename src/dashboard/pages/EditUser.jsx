@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Mail, Phone, Shield, User, Calendar } from 'lucide-react'
+import { ArrowLeft, Save, Mail, Phone, Shield, User, Calendar, AlertCircle } from 'lucide-react'
 import { useToast } from '../../context/ToastContext'
 import userService from '../../services/userService'
 import { useAppSelector } from '../../hooks'
@@ -13,6 +13,134 @@ const EditUser = () => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  // ✅ NOUVELLE SECTION : Données partagées avec AddUser.jsx
+  const departments = [
+    { value: 'direction', label: 'Direction' },
+    { value: 'reception', label: 'Réception' },
+    { value: 'housekeeping', label: 'Service de ménage' },
+    { value: 'restaurant', label: 'Restauration' },
+    { value: 'maintenance', label: 'Maintenance' },
+    { value: 'other', label: 'Autre' }
+  ]
+
+  const roles = [
+    { value: 'admin', label: 'Administrateur' },
+    { value: 'manager', label: 'Gérant' },
+    { value: 'receptionist', label: 'Réceptionniste' },
+    { value: 'housekeeper', label: 'Agent de ménage' },
+    { value: 'supervisor', label: 'Superviseur' },
+    { value: 'technician', label: 'Technicien' }
+  ]
+
+  const allPermissions = [
+    { id: 'gestion_utilisateurs', label: 'Gestion utilisateurs' },
+    { id: 'gestion_chambres', label: 'Gestion chambres' },
+    { id: 'gestion_reservations', label: 'Gestion réservations' },
+    { id: 'gestion_clients', label: 'Gestion clients' },
+    { id: 'acces_finances', label: 'Accès finances' },
+    { id: 'rapports', label: 'Génération rapports' },
+    { id: 'parametres_systeme', label: 'Paramètres système' },
+    { id: 'gestion_menage', label: 'Gestion ménage' },
+    { id: 'gestion_restaurant', label: 'Gestion restaurant' }
+  ]
+
+  // ✅ NOUVELLE SECTION : Mapping rôles → permissions par défaut (identique à AddUser.jsx)
+  const rolePermissionsMap = {
+    'admin': allPermissions.map(p => p.id), // Admin = toutes les permissions
+    'manager': [
+      'gestion_chambres',
+      'gestion_reservations', 
+      'gestion_clients',
+      'rapports',
+      'gestion_menage',
+      'gestion_restaurant'
+    ],
+    'receptionist': [
+      'gestion_reservations',
+      'gestion_clients'
+    ],
+    'housekeeper': [
+      'gestion_menage'
+    ],
+    'supervisor': [
+      'gestion_chambres',
+      'gestion_reservations',
+      'gestion_clients',
+      'gestion_menage',
+      'gestion_restaurant'
+    ],
+    'technician': [
+      'gestion_chambres'
+    ]
+  }
+
+  // ✅ NOUVELLE FONCTION : Appliquer les permissions par défaut selon le rôle
+  const applyDefaultPermissions = (role) => {
+    if (!role) return [];
+    
+    const defaultPermissions = rolePermissionsMap[role] || [];
+    console.log('🎯 Application permissions par défaut pour rôle (Edit):', {
+      role,
+      permissionsParDefaut: defaultPermissions,
+      nombrePermissions: defaultPermissions.length
+    });
+    
+    return [...defaultPermissions];
+  }
+
+  // ✅ NOUVELLE FONCTION : Vérifier si l'utilisateur est admin
+  const isAdminRole = (role) => {
+    return role === 'admin';
+  }
+
+  // ✅ NOUVELLE FONCTION : Gérer le changement de rôle (pour l'édition)
+  const handleRoleChange = (newRole) => {
+    console.log('🔄 Changement de rôle détecté (Edit):', {
+      ancienRole: user?.role,
+      nouveauRole: newRole,
+      estAdmin: isAdminRole(newRole)
+    });
+
+    // Si admin, demander confirmation car cela affecte toutes les permissions
+    if (isAdminRole(newRole) && !isAdminRole(user?.role)) {
+      if (!window.confirm('Êtes-vous sûr de vouloir attribuer le rôle Administrateur ? Toutes les permissions seront automatiquement activées.')) {
+        return; // Annuler le changement
+      }
+    }
+
+    // Mettre à jour le rôle
+    setUser(prev => ({
+      ...prev,
+      role: newRole
+    }));
+
+    // Appliquer les permissions par défaut selon le nouveau rôle
+    const defaultPermissions = applyDefaultPermissions(newRole);
+    
+    // Si admin, forcer toutes les permissions
+    const finalPermissions = isAdminRole(newRole) 
+      ? allPermissions.map(p => p.id)  // Admin = TOUTES les permissions
+      : defaultPermissions;             // Autres rôles = permissions par défaut
+
+    console.log('✅ Permissions appliquées (Edit):', {
+      permissions: finalPermissions,
+      nombre: finalPermissions.length
+    });
+
+    // Mettre à jour les permissions
+    setUser(prev => ({
+      ...prev,
+      permissions: finalPermissions
+    }));
+
+    // Afficher un message à l'utilisateur
+    if (isAdminRole(newRole)) {
+      toast.info('Toutes les permissions ont été activées automatiquement pour le rôle Administrateur');
+    } else if (defaultPermissions.length > 0) {
+      toast.info(`Permissions par défaut appliquées pour le rôle ${roles.find(r => r.value === newRole)?.label}`);
+    }
+  }
 
   // Vérifier les permissions
   const canEditUser = () => {
@@ -34,7 +162,10 @@ const EditUser = () => {
         
         if (response.data) {
           setUser(response.data)
-          console.log('✅ Utilisateur chargé:', response.data)
+          console.log('✅ Utilisateur chargé (Edit):', {
+            ...response.data,
+            permissionsCount: response.data.permissions?.length || 0
+          })
           
           // Vérifier les permissions après chargement
           if (!canEditUser()) {
@@ -61,7 +192,21 @@ const EditUser = () => {
 
     try {
       setSaving(true)
-      console.log('💾 Sauvegarde des modifications utilisateur:', user)
+      
+      // ✅ VALIDATION FINALE DES PERMISSIONS
+      let finalPermissions = [...(user.permissions || [])];
+      
+      // Si admin, s'assurer qu'il a toutes les permissions
+      if (isAdminRole(user.role)) {
+        finalPermissions = allPermissions.map(p => p.id);
+        console.log('🔒 Vérification admin: toutes permissions forcées');
+      }
+
+      console.log('💾 Sauvegarde des modifications utilisateur (Edit):', {
+        ...user,
+        permissions: finalPermissions,
+        permissionsCount: finalPermissions.length
+      })
 
       const response = await userService.updateUser(id, {
         name: user.name,
@@ -71,13 +216,13 @@ const EditUser = () => {
         department: user.department,
         role: user.role,
         status: user.status,
-        permissions: user.permissions
+        permissions: finalPermissions
       })
 
       if (response.data) {
         toast.success('Utilisateur modifié avec succès')
         navigate(`/dashboard/user/${id}`)
-        console.log('✅ Utilisateur sauvegardé:', response.data)
+        console.log('✅ Utilisateur sauvegardé (Edit):', response.data)
       }
     } catch (error) {
       console.error('❌ Erreur sauvegarde utilisateur:', error)
@@ -92,38 +237,14 @@ const EditUser = () => {
       ? user.permissions.filter(p => p !== permissionId)
       : [...user.permissions, permissionId]
     
+    console.log('🔧 Permission modifiée (Edit):', {
+      permission: permissionId,
+      nouvelleValeur: !user.permissions.includes(permissionId),
+      totalPermissions: updatedPermissions.length
+    })
+    
     setUser(prev => ({ ...prev, permissions: updatedPermissions }))
   }
-
-  const allPermissions = [
-    { id: 'gestion_utilisateurs', label: 'Gestion utilisateurs' },
-    { id: 'gestion_chambres', label: 'Gestion chambres' },
-    { id: 'gestion_reservations', label: 'Gestion réservations' },
-    { id: 'gestion_clients', label: 'Gestion clients' },
-    { id: 'acces_finances', label: 'Accès finances' },
-    { id: 'rapports', label: 'Génération rapports' },
-    { id: 'parametres_systeme', label: 'Paramètres système' },
-    { id: 'gestion_menage', label: 'Gestion ménage' },
-    { id: 'gestion_restaurant', label: 'Gestion restaurant' }
-  ]
-
-  const departments = [
-    { value: 'direction', label: 'Direction' },
-    { value: 'reception', label: 'Réception' },
-    { value: 'housekeeping', label: 'Service de ménage' },
-    { value: 'restaurant', label: 'Restauration' },
-    { value: 'maintenance', label: 'Maintenance' },
-    { value: 'other', label: 'Autre' }
-  ]
-
-  const roles = [
-    { value: 'admin', label: 'Administrateur' },
-    { value: 'manager', label: 'Gérant' },
-    { value: 'receptionist', label: 'Réceptionniste' },
-    { value: 'housekeeper', label: 'Agent de ménage' },
-    { value: 'supervisor', label: 'Superviseur' },
-    { value: 'technician', label: 'Technicien' }
-  ]
 
   if (loading) {
     return (
@@ -254,10 +375,24 @@ const EditUser = () => {
 
           {/* Permissions */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
-              <Shield className="w-5 h-5 mr-2 text-purple-600" />
-              Permissions
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold flex items-center">
+                <Shield className="w-5 h-5 mr-2 text-purple-600" />
+                Permissions
+              </h2>
+              {/* ✅ NOUVEAU : Indicateur de rôle admin */}
+              {isAdminRole(user.role) && (
+                <div className="flex items-center bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
+                  <AlertCircle className="w-4 h-4 mr-1" />
+                  <span className="text-sm font-medium">Administrateur - Toutes permissions</span>
+                </div>
+              )}
+            </div>
+            <p className="text-gray-600 mb-4">
+              {isAdminRole(user.role) 
+                ? "L'administrateur a automatiquement toutes les permissions. Vous pouvez les désactiver manuellement si nécessaire."
+                : "Sélectionnez les permissions accordées à cet utilisateur. Changer le rôle mettra à jour les permissions par défaut."}
+            </p>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {allPermissions.map(permission => (
                 <label 
@@ -266,18 +401,28 @@ const EditUser = () => {
                     user.permissions?.includes(permission.id)
                       ? 'bg-blue-50 border-blue-200 text-blue-700'
                       : 'bg-gray-50 border-gray-200 text-gray-700'
-                  } hover:bg-gray-100`}
+                  } hover:bg-gray-100 ${isAdminRole(user.role) ? 'opacity-100' : ''}`}
+                  title={isAdminRole(user.role) ? "Administrateur - Permission activée" : permission.label}
                 >
                   <input
                     type="checkbox"
                     checked={user.permissions?.includes(permission.id) || false}
                     onChange={() => handlePermissionToggle(permission.id)}
+                    disabled={isAdminRole(user.role)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm font-medium">{permission.label}</span>
                 </label>
               ))}
             </div>
+            {isAdminRole(user.role) && (
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ <strong>Note :</strong> Les administrateurs ont toutes les permissions par défaut. 
+                  Vous pouvez modifier cette configuration manuellement en décochant les permissions non souhaitées.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -313,7 +458,7 @@ const EditUser = () => {
                 </label>
                 <select
                   value={user.role || ''}
-                  onChange={(e) => setUser({...user, role: e.target.value})}
+                  onChange={(e) => handleRoleChange(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 >
@@ -369,6 +514,32 @@ const EditUser = () => {
                   {user.createdAt ? new Date(user.createdAt).toLocaleDateString('fr-FR') : 'Non défini'}
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* Résumé des permissions */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 className="font-semibold mb-4">Résumé Permissions</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Permissions actives:</span>
+                <span className="font-semibold">
+                  {user.permissions?.length || 0} / {allPermissions.length}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Rôle actuel:</span>
+                <span className="font-semibold">
+                  {roles.find(r => r.value === user.role)?.label || 'Non défini'}
+                </span>
+              </div>
+              {isAdminRole(user.role) && (
+                <div className="mt-2 p-2 bg-blue-50 rounded-lg">
+                  <p className="text-xs text-blue-700">
+                    <strong>⚠️ Attention :</strong> Ce compte a tous les privilèges administrateur
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
