@@ -164,3 +164,9 @@ export default function App() {
     </Provider>
   );
 }
+
+// Dans votre code frontend, ajoutez juste avant l'appel API
+console.log('=== DEBUG ENV ===');
+console.log('VITE_BASE_API_URL:', import.meta.env.VITE_BASE_API_URL);
+console.log('Toutes les VITE_*:', Object.keys(import.meta.env).filter(key => key.startsWith('VITE')));
+console.log('URL complète appelée:', `${import.meta.env.VITE_BASE_API_URL}/auth/login`);

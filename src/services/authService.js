@@ -3,6 +3,12 @@ import axios from 'axios';
 // URL de base pour l'API
 const API_URL = import.meta.env.VITE_BASE_API_URL;
 
+console.log('=== AUTH SERVICE INIT ===');
+console.log('VITE_BASE_API_URL from env:', import.meta.env.VITE_BASE_API_URL);
+console.log('API_URL value:', API_URL);
+console.log('Full login URL would be:', `${API_URL || 'UNDEFINED!'}/auth/login`);
+
+
 const api = axios.create({
   baseURL: API_URL,
   timeout: 10000,
